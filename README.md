@@ -24,6 +24,7 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
 | **Match & replace** | Regex substitutions applied on the wire — rewrite the request line, a header, or the body of outbound requests and inbound responses (Content-Length is kept correct). |
 | **Body search** | Filter the history across request/response bodies, not just method/host/path. |
 | **Passive scanner** | Flags security issues from observed traffic (missing CSP/HSTS/X-Content-Type-Options, insecure cookies, permissive CORS, version disclosure) without sending any extra requests. |
+| **Active scanner** | On demand, sends a small, bounded set of **non-destructive** probes for one request — input reflection and error-based injection indicators — restricted to in-scope hosts. Detection-only: it flags leads to verify by hand, never attempts exploitation. |
 | **Save / import / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2 and import HAR captures from other tools. |
 | **WebSocket support** | `ws://` and `wss://` upgrades are bridged transparently (they used to break, since `Upgrade`/`Connection` are stripped as hop-by-hop for ordinary HTTP) with a live, per-connection frame log — hand-rolled RFC 6455 framing, no dependency. |
 
@@ -43,6 +44,7 @@ mimlec/                     core module — pure Go standard library, no deps
 │   ├── intruder/           payload templating + concurrent attack engine
 │   ├── rules/              match-and-replace (on-the-wire regex rewrites)
 │   ├── scanner/            passive security checks over captured flows
+│   ├── activescan/         non-destructive active probes (opt-in, scope-gated)
 │   ├── sitemap/            per-host URL path tree built from captured flows
 │   ├── diff/               line-oriented text diff (repeater response compare)
 │   ├── har/                HAR 1.2 export and import
@@ -119,7 +121,8 @@ drop/edit paths (`internal/proxy/proxy_test.go`).
 
 ## Roadmap
 
-Planned next: an active scanner (crafted probes for common issue classes).
+Possible future work: authentication/session handling helpers, a built-in
+wordlist manager, and out-of-band (OAST) interaction detection.
 
 ## License
 

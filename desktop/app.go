@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gorkemguler/mimlec/internal/activescan"
 	"github.com/gorkemguler/mimlec/internal/cert"
 	"github.com/gorkemguler/mimlec/internal/diff"
 	"github.com/gorkemguler/mimlec/internal/har"
@@ -247,6 +248,49 @@ func (a *App) GetFindings() []scanner.Finding { return a.scanner.Findings() }
 
 // ClearFindings discards recorded findings.
 func (a *App) ClearFindings() { a.scanner.Clear() }
+
+// ActiveScan runs a small, non-destructive set of probes against a single
+// captured request and merges any findings into the Findings list. It refuses
+// out-of-scope hosts when a scope is configured. Probing runs in the
+// background; results arrive as scanner:finding events, then activescan:done.
+func (a *App) ActiveScan(flowID int64) error {
+	f, ok := a.store.Get(flowID)
+	if !ok {
+		return fmt.Errorf("flow %d not found", flowID)
+	}
+	if m := a.scopeMatcher(); m != nil && !m(hostOnlyApp(f.Host)) {
+		return fmt.Errorf("host %q is out of scope; active scanning is limited to in-scope hosts", f.Host)
+	}
+	cfg := activescan.Config{
+		Scheme:           f.Scheme,
+		Host:             f.Host,
+		Raw:              f.Request.Raw,
+		InsecureUpstream: true,
+	}
+	go func() {
+		findings, err := activescan.Run(context.Background(), cfg)
+		for _, fnd := range findings {
+			fnd.FlowID = flowID
+			a.scanner.Add(fnd)
+		}
+		if a.ctx != nil {
+			msg := ""
+			if err != nil {
+				msg = err.Error()
+			}
+			wruntime.EventsEmit(a.ctx, "activescan:done", msg)
+		}
+	}()
+	return nil
+}
+
+// hostOnlyApp strips a port from an authority for scope matching.
+func hostOnlyApp(authority string) string {
+	if i := strings.LastIndexByte(authority, ':'); i > 0 && !strings.Contains(authority[i:], "]") {
+		return authority[:i]
+	}
+	return authority
+}
 
 // ---- WebSocket sessions -----------------------------------------------------
 

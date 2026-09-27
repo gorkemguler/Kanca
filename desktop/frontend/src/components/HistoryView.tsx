@@ -148,6 +148,16 @@ export default function HistoryView({
                 </span>
                 <button onClick={() => onSendToRepeater(view.id)}>→ Repeater</button>
                 <button onClick={() => onSendToIntruder(view)}>→ Intruder</button>
+                <button
+                  title="Run non-destructive active probes against this request (in-scope hosts only); results appear in Findings"
+                  onClick={() =>
+                    api
+                      .activeScan(view.id)
+                      .catch((e: any) => alert("Active scan failed: " + (e?.message ?? e)))
+                  }
+                >
+                  Active scan
+                </button>
               </div>
               <div className="split-h">
                 <RawMessage title="Request" value={view.requestRaw} />

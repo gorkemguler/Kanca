@@ -100,6 +100,33 @@ func (s *Scanner) Inspect(f *proxy.Flow) {
 	}
 }
 
+// Add records an externally-produced finding (e.g. from the active scanner)
+// through the same dedup pipeline as passive checks, so it appears in the same
+// list and fires OnFinding. The finding's ID is assigned here. It returns
+// false when a matching finding (same severity, title and host) already exists.
+func (s *Scanner) Add(f Finding) bool {
+	host := hostOnly(f.Host)
+	key := string(f.Severity) + "|" + f.Title + "|" + host
+
+	s.mu.Lock()
+	if s.seen[key] {
+		s.mu.Unlock()
+		return false
+	}
+	s.seen[key] = true
+	s.seq++
+	f.ID = s.seq
+	stored := f
+	s.findings = append(s.findings, &stored)
+	cb := s.onFind
+	s.mu.Unlock()
+
+	if cb != nil {
+		cb(stored)
+	}
+	return true
+}
+
 // Findings returns a copy of all recorded findings.
 func (s *Scanner) Findings() []Finding {
 	s.mu.Lock()
