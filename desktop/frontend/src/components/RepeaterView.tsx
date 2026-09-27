@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, FlowView, RepeaterTab } from "../lib/api";
+import { api, DiffResult, FlowView, RepeaterTab } from "../lib/api";
 import RawMessage from "./RawMessage";
 
 interface LocalTab {
@@ -9,6 +9,7 @@ interface LocalTab {
   host: string;
   raw: string;
   response: FlowView | null;
+  prevResponse: FlowView | null; // the response before the latest, for diffing
   sending: boolean;
 }
 
@@ -35,6 +36,7 @@ export default function RepeaterView({ pending, clearPending }: Props) {
           host: t.host,
           raw: t.raw,
           response: null,
+          prevResponse: null,
           sending: false,
         });
       }
@@ -57,6 +59,7 @@ export default function RepeaterView({ pending, clearPending }: Props) {
       host: t.host,
       raw: t.raw,
       response: null,
+      prevResponse: null,
       sending: false,
     };
     setTabs((prev) => [...prev, lt]);
@@ -72,18 +75,32 @@ export default function RepeaterView({ pending, clearPending }: Props) {
     if (active === id) setActive(null);
   };
 
+  const [showDiff, setShowDiff] = useState(false);
+  const [diff, setDiff] = useState<DiffResult | null>(null);
+
   const send = async (t: LocalTab) => {
     patch(t.id, { sending: true });
     await api.repeaterUpdate(t.id, t.scheme, t.host, t.raw);
     try {
       const resp = await api.repeaterSend(t.id);
-      patch(t.id, { response: resp, sending: false });
+      // Keep the prior response so it can be diffed against this one.
+      patch(t.id, { prevResponse: t.response, response: resp, sending: false });
     } catch {
       patch(t.id, { sending: false });
     }
   };
 
   const cur = tabs.find((t) => t.id === active) ?? null;
+
+  const runDiff = async (t: LocalTab) => {
+    if (!t.prevResponse || !t.response) return;
+    const d = await api.diffText(
+      t.prevResponse.responseRaw,
+      t.response.responseRaw
+    );
+    setDiff(d);
+    setShowDiff(true);
+  };
 
   return (
     <div className="split-v">
@@ -92,7 +109,10 @@ export default function RepeaterView({ pending, clearPending }: Props) {
           <div
             key={t.id}
             className={"rep-tab" + (active === t.id ? " active" : "")}
-            onClick={() => setActive(t.id)}
+            onClick={() => {
+              setActive(t.id);
+              setShowDiff(false); // a stored diff belongs to one tab; reset on switch
+            }}
           >
             {t.name}
             <span
@@ -140,25 +160,74 @@ export default function RepeaterView({ pending, clearPending }: Props) {
                   : `${cur.response.statusCode} · ${cur.response.respLength}B · ${cur.response.durationMs}ms`}
               </span>
             )}
+            <span className="grow" />
+            <button
+              onClick={() => runDiff(cur)}
+              disabled={!cur.prevResponse || !cur.response}
+              title="Compare this response with the previous send"
+            >
+              Diff vs previous
+            </button>
           </div>
-          <div className="split-h">
-            <RawMessage
-              title="Request"
-              value={cur.raw}
-              editable
-              onChange={(v) => patch(cur.id, { raw: v })}
-            />
-            <div className="divider" />
-            <RawMessage
-              title="Response"
-              value={
-                cur.response
-                  ? cur.response.error || cur.response.responseRaw
-                  : ""
-              }
-              placeholder="Send the request to see the response."
-            />
-          </div>
+          {showDiff && diff ? (
+            <div className="split-v">
+              <div className="toolbar">
+                <b>Diff</b>
+                <span className="pill" style={{ color: "var(--ok)" }}>
+                  +{diff.stats.added}
+                </span>
+                <span className="pill" style={{ color: "var(--err)" }}>
+                  −{diff.stats.removed}
+                </span>
+                <span className="dim">previous → latest response</span>
+                <span className="grow" />
+                <button onClick={() => setShowDiff(false)}>Close diff</button>
+              </div>
+              <div className="pane msg">
+                <pre style={{ margin: 0 }}>
+                  {diff.lines.map((l, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        background:
+                          l.op === "insert"
+                            ? "rgba(76,175,114,0.15)"
+                            : l.op === "delete"
+                            ? "rgba(224,85,97,0.15)"
+                            : "transparent",
+                        color:
+                          l.op === "equal" ? "var(--text-dim)" : "var(--text)",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-all",
+                      }}
+                    >
+                      {l.op === "insert" ? "+ " : l.op === "delete" ? "- " : "  "}
+                      {l.text}
+                    </div>
+                  ))}
+                </pre>
+              </div>
+            </div>
+          ) : (
+            <div className="split-h">
+              <RawMessage
+                title="Request"
+                value={cur.raw}
+                editable
+                onChange={(v) => patch(cur.id, { raw: v })}
+              />
+              <div className="divider" />
+              <RawMessage
+                title="Response"
+                value={
+                  cur.response
+                    ? cur.response.error || cur.response.responseRaw
+                    : ""
+                }
+                placeholder="Send the request to see the response."
+              />
+            </div>
+          )}
         </div>
       ) : (
         <div className="empty">

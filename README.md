@@ -16,7 +16,7 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
 | **Intercepting proxy** | Terminates TLS with an on-the-fly per-host certificate signed by a local root CA, so HTTPS traffic can be inspected and modified. |
 | **HTTP history** | Every request/response is captured, searchable and filterable, with the full raw bytes of each side. |
 | **Interception queue** | Pause requests (and optionally responses), edit the raw bytes, then forward or drop them. |
-| **Repeater** | Take any request, tweak it freely, and resend it as many times as you like — each tab keeps its own send history. |
+| **Repeater** | Take any request, tweak it freely, and resend it as many times as you like — each tab keeps its own send history, and a line diff compares a response with the previous send. |
 | **Intruder / fuzzer** | Automated payload injection with four attack types (sniper, battering ram, pitchfork, cluster bomb), concurrency control and grep-match highlighting. Payload sets come from a list or a generated numeric range, with per-set processors (URL/base64 encode, upper/lower, MD5/SHA-1/SHA-256). |
 | **Target scope** | Restrict recording to chosen hosts (exact, parent-domain or `*.` wildcard); out-of-scope traffic is still proxied but not logged. |
 | **Readable bodies** | `gzip`, `deflate` and `brotli` responses are transparently decoded for display, while the proxy forwards the untouched bytes. |
@@ -44,6 +44,7 @@ mimlec/                     core module — pure Go standard library, no deps
 │   ├── rules/              match-and-replace (on-the-wire regex rewrites)
 │   ├── scanner/            passive security checks over captured flows
 │   ├── sitemap/            per-host URL path tree built from captured flows
+│   ├── diff/               line-oriented text diff (repeater response compare)
 │   ├── har/                HAR 1.2 export and import
 │   └── project/            save/load a session (flows, rules, findings, scope)
 ├── cmd/mimlec/             headless CLI runner (no GUI required)
@@ -118,7 +119,7 @@ drop/edit paths (`internal/proxy/proxy_test.go`).
 
 ## Roadmap
 
-Planned next: an active scanner and request/response diffing in the repeater.
+Planned next: an active scanner (crafted probes for common issue classes).
 
 ## License
 

@@ -168,6 +168,18 @@ export interface WSSession {
   frames: WSFrameView[] | null;
 }
 
+export interface DiffLine {
+  op: "equal" | "insert" | "delete";
+  text: string;
+  aLine: number;
+  bLine: number;
+}
+
+export interface DiffResult {
+  lines: DiffLine[];
+  stats: { added: number; removed: number };
+}
+
 export interface SiteMapNode {
   name: string;
   path: string;
@@ -206,6 +218,7 @@ interface WailsBackend {
   ClearWSSessions(): Promise<void>;
   ImportHAR(): Promise<void>;
   GetSiteMap(): Promise<SiteMapNode[]>;
+  DiffText(before: string, after: string): Promise<DiffResult>;
   SetIntercept(enabled: boolean): Promise<void>;
   SetInterceptResponses(enabled: boolean): Promise<void>;
   ForwardHeld(id: number, raw: string): Promise<void>;
@@ -266,6 +279,7 @@ export const api = {
   clearWSSessions: () => backend().ClearWSSessions(),
   importHAR: () => backend().ImportHAR(),
   getSiteMap: () => backend().GetSiteMap(),
+  diffText: (before: string, after: string) => backend().DiffText(before, after),
   setIntercept: (on: boolean) => backend().SetIntercept(on),
   setInterceptResponses: (on: boolean) => backend().SetInterceptResponses(on),
   forwardHeld: (id: number, raw: string) => backend().ForwardHeld(id, raw),

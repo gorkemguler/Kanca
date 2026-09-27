@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/gorkemguler/mimlec/internal/cert"
+	"github.com/gorkemguler/mimlec/internal/diff"
 	"github.com/gorkemguler/mimlec/internal/har"
 	"github.com/gorkemguler/mimlec/internal/history"
 	"github.com/gorkemguler/mimlec/internal/intruder"
@@ -374,6 +375,14 @@ func (a *App) ImportHAR() error {
 // GetSiteMap returns the captured traffic arranged as a per-host path tree.
 func (a *App) GetSiteMap() []*sitemap.Node {
 	return sitemap.Build(a.store.Snapshot())
+}
+
+// ---- Diff -------------------------------------------------------------------
+
+// DiffText returns a line-oriented diff of two texts (e.g. two repeater
+// responses), for side-by-side comparison in the UI.
+func (a *App) DiffText(before, after string) diff.Result {
+	return diff.Lines(before, after)
 }
 
 // ---- History ---------------------------------------------------------------
