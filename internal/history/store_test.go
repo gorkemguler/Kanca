@@ -83,3 +83,25 @@ func TestSubscribeNotifies(t *testing.T) {
 		t.Fatalf("notified id = %d", id)
 	}
 }
+
+func TestBodySearch(t *testing.T) {
+	s := New(0)
+	f := mkFlow(1, "POST", "api.example.com", "/login", 200)
+	f.Request.Body = []byte("username=admin&password=secret")
+	f.Response.Body = []byte("welcome back")
+	s.Add(f)
+	s.Add(mkFlow(2, "GET", "api.example.com", "/health", 200))
+
+	// Default (no body search): "secret" is not in method/host/path.
+	if got := s.List(Filter{Text: "secret"}); len(got) != 0 {
+		t.Fatalf("expected no path match, got %d", len(got))
+	}
+	// With body search enabled, the request body matches.
+	if got := s.List(Filter{Text: "secret", SearchBodies: true}); len(got) != 1 || got[0].ID != 1 {
+		t.Fatalf("body search (request) = %+v", got)
+	}
+	// Response body also matches.
+	if got := s.List(Filter{Text: "welcome", SearchBodies: true}); len(got) != 1 || got[0].ID != 1 {
+		t.Fatalf("body search (response) = %+v", got)
+	}
+}

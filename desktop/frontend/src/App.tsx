@@ -4,9 +4,18 @@ import HistoryView from "./components/HistoryView";
 import InterceptView from "./components/InterceptView";
 import RepeaterView from "./components/RepeaterView";
 import IntruderView from "./components/IntruderView";
+import RulesView from "./components/RulesView";
+import FindingsView from "./components/FindingsView";
 import SettingsView from "./components/SettingsView";
 
-type TabKey = "history" | "intercept" | "repeater" | "intruder" | "settings";
+type TabKey =
+  | "history"
+  | "intercept"
+  | "repeater"
+  | "intruder"
+  | "rules"
+  | "findings"
+  | "settings";
 
 export default function App() {
   const [tab, setTab] = useState<TabKey>("history");
@@ -14,10 +23,12 @@ export default function App() {
   const [addr, setAddr] = useState("127.0.0.1:8080");
   const [intercepting, setIntercepting] = useState(false);
   const [queueCount, setQueueCount] = useState(0);
+  const [busy, setBusy] = useState("");
 
-  // Cross-tab hand-offs from History.
+  // Cross-tab hand-offs from History / Findings.
   const [repeaterQueue, setRepeaterQueue] = useState<number[]>([]);
   const [intruderSeed, setIntruderSeed] = useState<FlowView | null>(null);
+  const [focusFlow, setFocusFlow] = useState<number | null>(null);
 
   useEffect(() => {
     api.getStatus().then((s) => {
@@ -45,12 +56,31 @@ export default function App() {
     setIntruderSeed(flow);
     setTab("intruder");
   }, []);
+  const openFlow = useCallback((flowId: number) => {
+    setFocusFlow(flowId);
+    setTab("history");
+  }, []);
+
+  const run = async (label: string, fn: () => Promise<void>) => {
+    setBusy(label);
+    try {
+      await fn();
+    } catch (e: any) {
+      // Surface backend errors without a modal dependency.
+      console.error(e);
+      alert(`${label} failed: ${e?.message ?? e}`);
+    } finally {
+      setBusy("");
+    }
+  };
 
   const tabs: { key: TabKey; label: string; badge?: number }[] = [
     { key: "history", label: "Proxy History" },
     { key: "intercept", label: "Intercept", badge: queueCount || undefined },
     { key: "repeater", label: "Repeater" },
     { key: "intruder", label: "Intruder" },
+    { key: "rules", label: "Match/Replace" },
+    { key: "findings", label: "Findings" },
     { key: "settings", label: "CA / Settings" },
   ];
 
@@ -73,7 +103,16 @@ export default function App() {
         <button className={status.running ? "danger" : "primary"} onClick={toggleProxy}>
           {status.running ? "Stop proxy" : "Start proxy"}
         </button>
-        <span className="spacer" />
+        <span className="grow" />
+        <button disabled={!!busy} onClick={() => run("Open project", api.loadProject)}>
+          Open
+        </button>
+        <button disabled={!!busy} onClick={() => run("Save project", api.saveProject)}>
+          Save
+        </button>
+        <button disabled={!!busy} onClick={() => run("Export HAR", api.exportHAR)}>
+          Export HAR
+        </button>
       </div>
 
       <div className="tabs">
@@ -94,6 +133,8 @@ export default function App() {
           <HistoryView
             onSendToRepeater={sendToRepeater}
             onSendToIntruder={sendToIntruder}
+            focusFlow={focusFlow}
+            clearFocus={() => setFocusFlow(null)}
           />
         )}
         {tab === "intercept" && (
@@ -112,6 +153,8 @@ export default function App() {
         {tab === "intruder" && (
           <IntruderView seed={intruderSeed} clearSeed={() => setIntruderSeed(null)} />
         )}
+        {tab === "rules" && <RulesView />}
+        {tab === "findings" && <FindingsView onOpenFlow={openFlow} />}
         {tab === "settings" && <SettingsView />}
       </div>
     </div>

@@ -301,3 +301,32 @@ func replaceBytes(raw []byte, old, new string) []byte {
 	out = append(out, raw[i+len(old):]...)
 	return out
 }
+
+func TestRewriterModifiesRequestAndResponse(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "seen=%s", r.Header.Get("X-Test"))
+	}))
+	defer backend.Close()
+
+	p, ca := newProxy(t)
+	// Request: inject a header. Response: swap a same-length token so the
+	// caller-supplied Content-Length stays valid (a rewriter is trusted to
+	// keep it consistent; the rules package does this automatically).
+	p.SetRewriter(func(phase, host string, raw []byte) []byte {
+		if phase == "request" {
+			return injectHeader(raw, "X-Test: injected")
+		}
+		return replaceBytes(raw, "injected", "OVERRIDE") // 8 == 8, length preserved
+	})
+
+	client := clientThrough(t, p, ca)
+	resp, err := client.Get(backend.URL + "/x")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if string(body) != "seen=OVERRIDE" {
+		t.Fatalf("rewrite pipeline wrong, body = %q", body)
+	}
+}

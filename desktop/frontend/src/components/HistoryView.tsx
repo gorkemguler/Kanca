@@ -13,30 +13,44 @@ function statusClass(code: number): string {
 interface Props {
   onSendToRepeater: (flowId: number) => void;
   onSendToIntruder: (flow: FlowView) => void;
+  focusFlow?: number | null;
+  clearFocus?: () => void;
 }
 
-export default function HistoryView({ onSendToRepeater, onSendToIntruder }: Props) {
+export default function HistoryView({
+  onSendToRepeater,
+  onSendToIntruder,
+  focusFlow,
+  clearFocus,
+}: Props) {
   const [rows, setRows] = useState<Entry[]>([]);
   const [filter, setFilter] = useState("");
+  const [searchBodies, setSearchBodies] = useState(false);
   const [selected, setSelected] = useState<FlowView | null>(null);
   const [selId, setSelId] = useState<number | null>(null);
   const filterRef = useRef(filter);
   filterRef.current = filter;
+  const bodiesRef = useRef(searchBodies);
+  bodiesRef.current = searchBodies;
 
   const refresh = async () => {
-    setRows(await api.listHistory(filterRef.current, []));
+    setRows(await api.listHistory(filterRef.current, [], bodiesRef.current));
   };
 
   useEffect(() => {
     refresh();
-    // Live-append on each new captured flow.
-    const off = on("proxy:flow", () => refresh());
-    return off;
+    // Live-append on each new captured flow, and after a project load.
+    const offFlow = on("proxy:flow", () => refresh());
+    const offProj = on("project:loaded", () => refresh());
+    return () => {
+      offFlow();
+      offProj();
+    };
   }, []);
 
   useEffect(() => {
     refresh();
-  }, [filter]);
+  }, [filter, searchBodies]);
 
   const select = async (id: number) => {
     setSelId(id);
@@ -47,6 +61,15 @@ export default function HistoryView({ onSendToRepeater, onSendToIntruder }: Prop
     }
   };
 
+  // When another tab asks to focus a flow (e.g. Findings → View), open it.
+  useEffect(() => {
+    if (focusFlow != null) {
+      select(focusFlow);
+      clearFocus?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusFlow]);
+
   const view = useMemo(() => selected, [selected]);
 
   return (
@@ -54,10 +77,22 @@ export default function HistoryView({ onSendToRepeater, onSendToIntruder }: Prop
       <div className="toolbar">
         <input
           className="grow"
-          placeholder="Filter by method, host or path…"
+          placeholder={
+            searchBodies
+              ? "Filter method/host/path and bodies…"
+              : "Filter by method, host or path…"
+          }
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
+        <label className="row" title="Also search request/response bodies">
+          <input
+            type="checkbox"
+            checked={searchBodies}
+            onChange={(e) => setSearchBodies(e.target.checked)}
+          />
+          <span className="dim">bodies</span>
+        </label>
         <span className="pill">{rows.length} flows</span>
         <button onClick={() => api.clearHistory().then(refresh)}>Clear</button>
       </div>

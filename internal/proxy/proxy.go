@@ -9,6 +9,7 @@ package proxy
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -56,6 +57,12 @@ type Proxy struct {
 	// scopeMu guards the optional in-scope host filter.
 	scopeMu sync.RWMutex
 	inScope func(host string) bool
+
+	// rewriteMu guards the optional match-and-replace hook. It rewrites the
+	// raw bytes of a request ("request") or response ("response") in place on
+	// the wire; a nil hook is a no-op.
+	rewriteMu sync.RWMutex
+	rewrite   func(phase, host string, raw []byte) []byte
 }
 
 // New constructs a Proxy. cfg.CA is required.
@@ -89,6 +96,25 @@ func New(cfg Config) (*Proxy, error) {
 
 // Interceptor exposes the interception controller for the UI layer.
 func (p *Proxy) Interceptor() *Interceptor { return p.interceptor }
+
+// SetRewriter installs a match-and-replace hook applied to the raw bytes of
+// each request (phase "request") and response (phase "response") before they
+// go on the wire. Pass nil to disable rewriting.
+func (p *Proxy) SetRewriter(fn func(phase, host string, raw []byte) []byte) {
+	p.rewriteMu.Lock()
+	p.rewrite = fn
+	p.rewriteMu.Unlock()
+}
+
+func (p *Proxy) applyRewrite(phase, host string, raw []byte) []byte {
+	p.rewriteMu.RLock()
+	fn := p.rewrite
+	p.rewriteMu.RUnlock()
+	if fn == nil {
+		return raw
+	}
+	return fn(phase, host, raw)
+}
 
 // OnFlow registers a callback invoked for every completed transaction.
 func (p *Proxy) OnFlow(fn func(*Flow)) {
@@ -291,6 +317,15 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 	reqBody, _ := captureBody(&req.Body)
 	rawReq := requestToRaw(req, reqBody)
 
+	// Match-and-replace on the outbound request.
+	if rewritten := p.applyRewrite("request", host, rawReq); !bytes.Equal(rewritten, rawReq) {
+		if edited, err := rawToRequest(rewritten, scheme, authority); err == nil {
+			req = edited
+			reqBody, _ = captureBody(&req.Body)
+			rawReq = rewritten
+		}
+	}
+
 	// Request-side interception.
 	res := p.interceptor.hold(nextFlowID(), DirectionRequest, authority, req.Method, req.URL.String(), rawReq)
 	if res.Decision == DecisionDrop {
@@ -329,6 +364,16 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 
 	respBody, _ := captureBody(&resp.Body)
 	rawResp := responseToRaw(resp, respBody)
+
+	// Match-and-replace on the inbound response.
+	if rewritten := p.applyRewrite("response", host, rawResp); !bytes.Equal(rewritten, rawResp) {
+		if edited, perr := rawToResponse(rewritten, outReq); perr == nil {
+			eb, _ := captureBody(&edited.Body)
+			resp = edited
+			respBody = eb
+			rawResp = rewritten
+		}
+	}
 
 	// Response-side interception.
 	res = p.interceptor.hold(f.ID, DirectionResponse, authority, req.Method, f.URL, rawResp)

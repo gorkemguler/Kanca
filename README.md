@@ -20,6 +20,10 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
 | **Intruder / fuzzer** | Automated payload injection with four attack types (sniper, battering ram, pitchfork, cluster bomb), concurrency control and grep-match highlighting. |
 | **Target scope** | Restrict recording to chosen hosts (exact, parent-domain or `*.` wildcard); out-of-scope traffic is still proxied but not logged. |
 | **Readable bodies** | `gzip`/`deflate` responses are transparently decoded for display, while the proxy forwards the untouched bytes. |
+| **Match & replace** | Regex substitutions applied on the wire — rewrite the request line, a header, or the body of outbound requests and inbound responses (Content-Length is kept correct). |
+| **Body search** | Filter the history across request/response bodies, not just method/host/path. |
+| **Passive scanner** | Flags security issues from observed traffic (missing CSP/HSTS/X-Content-Type-Options, insecure cookies, permissive CORS, version disclosure) without sending any extra requests. |
+| **Save / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2. |
 
 ## Architecture
 
@@ -33,7 +37,11 @@ mimlec/                     core module — pure Go standard library, no deps
 │   ├── proxy/              the intercepting proxy engine + HTTP wire codec
 │   ├── history/            searchable, bounded flow log
 │   ├── repeater/           edit-and-resend workspaces
-│   └── intruder/           payload templating + concurrent attack engine
+│   ├── intruder/           payload templating + concurrent attack engine
+│   ├── rules/              match-and-replace (on-the-wire regex rewrites)
+│   ├── scanner/            passive security checks over captured flows
+│   ├── har/                HAR 1.2 export
+│   └── project/            save/load a session (flows, rules, findings, scope)
 ├── cmd/mimlec/             headless CLI runner (no GUI required)
 └── desktop/                separate module — Wails v2 desktop app
     ├── app.go              Go ↔ frontend bindings
@@ -106,9 +114,9 @@ drop/edit paths (`internal/proxy/proxy_test.go`).
 
 ## Roadmap
 
-Planned next: request/response search across bodies, match-and-replace rules,
-brotli response decoding, a passive issue scanner, session/project
-persistence, WebSocket support, and import/export of captured traffic (HAR).
+Planned next: WebSocket interception, brotli response decoding, HAR *import*
+(to complement export), an active scanner, a target site-map tree, and
+request/response diffing in the repeater.
 
 ## License
 

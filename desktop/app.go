@@ -9,12 +9,19 @@ import (
 	"sync"
 
 	"github.com/gorkemguler/mimlec/internal/cert"
+	"github.com/gorkemguler/mimlec/internal/har"
 	"github.com/gorkemguler/mimlec/internal/history"
 	"github.com/gorkemguler/mimlec/internal/intruder"
+	"github.com/gorkemguler/mimlec/internal/project"
 	"github.com/gorkemguler/mimlec/internal/proxy"
 	"github.com/gorkemguler/mimlec/internal/repeater"
+	"github.com/gorkemguler/mimlec/internal/rules"
+	"github.com/gorkemguler/mimlec/internal/scanner"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// appVersion is stamped into exported HAR and project files.
+const appVersion = "0.1.0"
 
 // App is the Wails-bound backend. Every exported method is callable from the
 // TypeScript frontend; live updates are pushed as Wails events.
@@ -36,6 +43,9 @@ type App struct {
 	scopeMu      sync.Mutex
 	scopeEnabled bool
 	scopeHosts   []string
+
+	rules   *rules.Set
+	scanner *scanner.Scanner
 }
 
 // NewApp constructs the application backend, loading (or creating) the root CA.
@@ -46,10 +56,12 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 	return &App{
-		ca:    ca,
-		store: history.New(0),
-		rep:   repeater.New(true),
-		addr:  "127.0.0.1:8080",
+		ca:      ca,
+		store:   history.New(0),
+		rep:     repeater.New(true),
+		addr:    "127.0.0.1:8080",
+		rules:   rules.NewSet(),
+		scanner: scanner.New(),
 	}, nil
 }
 
@@ -59,7 +71,11 @@ func (a *App) startup(ctx context.Context) {
 	a.store.Subscribe(func(id int64) {
 		if f, ok := a.store.Get(id); ok {
 			wruntime.EventsEmit(a.ctx, "proxy:flow", toEntryView(f))
+			a.scanner.Inspect(f)
 		}
+	})
+	a.scanner.OnFinding(func(fnd scanner.Finding) {
+		wruntime.EventsEmit(a.ctx, "scanner:finding", fnd)
 	})
 }
 
@@ -97,6 +113,7 @@ func (a *App) StartProxy(addr string) (ProxyStatus, error) {
 		wruntime.EventsEmit(a.ctx, "intercept:hold", toHeldView(h))
 	})
 	p.SetScope(a.scopeMatcher())
+	p.SetRewriter(a.rulesRewriter())
 	if err := p.Start(); err != nil {
 		return ProxyStatus{}, err
 	}
@@ -198,11 +215,119 @@ func normalizeHosts(in []string) []string {
 	return out
 }
 
+// ---- Match & replace rules -------------------------------------------------
+
+// GetRules returns the current match-and-replace rules.
+func (a *App) GetRules() []rules.Rule { return a.rules.List() }
+
+// SetRules replaces the rule set. Invalid regexps are rejected as a whole.
+func (a *App) SetRules(in []rules.Rule) error { return a.rules.Replace(in) }
+
+// rulesRewriter adapts the rule set to the proxy's rewrite hook.
+func (a *App) rulesRewriter() func(phase, host string, raw []byte) []byte {
+	return func(phase, host string, raw []byte) []byte {
+		return a.rules.Apply(rules.Phase(phase), host, raw)
+	}
+}
+
+// ---- Passive scanner -------------------------------------------------------
+
+// GetFindings returns all passive scanner findings.
+func (a *App) GetFindings() []scanner.Finding { return a.scanner.Findings() }
+
+// ClearFindings discards recorded findings.
+func (a *App) ClearFindings() { a.scanner.Clear() }
+
+// ---- Export & project ------------------------------------------------------
+
+// ExportHAR prompts for a location and writes the captured history as a HAR
+// 1.2 archive. A cancelled dialog is a no-op.
+func (a *App) ExportHAR() error {
+	path, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{
+		Title:           "Export HAR",
+		DefaultFilename: "mimlec-export.har",
+		Filters:         []wruntime.FileFilter{{DisplayName: "HAR archive (*.har)", Pattern: "*.har"}},
+	})
+	if err != nil || path == "" {
+		return err
+	}
+	data, err := har.Marshal(a.store.Snapshot(), appVersion)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
+}
+
+// SaveProject prompts for a location and writes flows, rules, findings and
+// scope to a project file. A cancelled dialog is a no-op.
+func (a *App) SaveProject() error {
+	path, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{
+		Title:           "Save Mimlec project",
+		DefaultFilename: "session.mimlec.json",
+		Filters:         []wruntime.FileFilter{{DisplayName: "Mimlec project (*.json)", Pattern: "*.json"}},
+	})
+	if err != nil || path == "" {
+		return err
+	}
+	return a.saveProjectTo(path)
+}
+
+func (a *App) saveProjectTo(path string) error {
+	flows := a.store.Snapshot()
+	dtos := make([]project.FlowDTO, 0, len(flows))
+	for _, f := range flows {
+		dtos = append(dtos, project.FromFlow(f))
+	}
+	sc := a.GetScope()
+	return project.Save(path, project.File{
+		Version:    appVersion,
+		Flows:      dtos,
+		Rules:      a.rules.List(),
+		Findings:   a.scanner.Findings(),
+		ScopeOn:    sc.Enabled,
+		ScopeHosts: sc.Hosts,
+	})
+}
+
+// LoadProject prompts for a project file, replaces the current session with
+// its contents, and tells the frontend to refresh. A cancelled dialog is a
+// no-op.
+func (a *App) LoadProject() error {
+	path, err := wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{
+		Title:   "Open Mimlec project",
+		Filters: []wruntime.FileFilter{{DisplayName: "Mimlec project (*.json)", Pattern: "*.json"}},
+	})
+	if err != nil || path == "" {
+		return err
+	}
+	return a.loadProjectFrom(path)
+}
+
+func (a *App) loadProjectFrom(path string) error {
+	f, err := project.Load(path)
+	if err != nil {
+		return err
+	}
+	a.store.Clear()
+	a.scanner.Clear()
+	// Re-inspecting each loaded flow regenerates findings deterministically.
+	for _, fl := range f.FlowList() {
+		a.store.Add(fl)
+	}
+	_ = a.rules.Replace(f.Rules)
+	a.SetScope(ScopeConfig{Enabled: f.ScopeOn, Hosts: f.ScopeHosts})
+	if a.ctx != nil {
+		wruntime.EventsEmit(a.ctx, "project:loaded", len(f.Flows))
+	}
+	return nil
+}
+
 // ---- History ---------------------------------------------------------------
 
-// ListHistory returns filtered, newest-first history entries.
-func (a *App) ListHistory(text string, methods []string) []history.Entry {
-	return a.store.List(history.Filter{Text: text, Methods: methods})
+// ListHistory returns filtered, newest-first history entries. When
+// searchBodies is true, the text also matches request/response bodies.
+func (a *App) ListHistory(text string, methods []string, searchBodies bool) []history.Entry {
+	return a.store.List(history.Filter{Text: text, Methods: methods, SearchBodies: searchBodies})
 }
 
 // ClearHistory discards all captured flows.

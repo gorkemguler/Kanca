@@ -88,6 +88,32 @@ export interface ScopeConfig {
   hosts: string[];
 }
 
+export type RulePhase = "request" | "response";
+export type RulePart = "first_line" | "headers" | "body";
+
+export interface Rule {
+  id: number;
+  name: string;
+  enabled: boolean;
+  phase: RulePhase;
+  part: RulePart;
+  match: string;
+  replace: string;
+  host?: string;
+}
+
+export type Severity = "info" | "low" | "medium" | "high";
+
+export interface Finding {
+  id: number;
+  severity: Severity;
+  title: string;
+  detail: string;
+  host: string;
+  url: string;
+  flowId: number;
+}
+
 export interface IntruderResult {
   index: number;
   payloads: string[];
@@ -107,9 +133,20 @@ interface WailsBackend {
   ExportRootCA(path: string): Promise<void>;
   GetScope(): Promise<ScopeConfig>;
   SetScope(cfg: ScopeConfig): Promise<void>;
-  ListHistory(text: string, methods: string[]): Promise<Entry[]>;
+  ListHistory(
+    text: string,
+    methods: string[],
+    searchBodies: boolean
+  ): Promise<Entry[]>;
   ClearHistory(): Promise<void>;
   GetFlow(id: number): Promise<FlowView>;
+  GetRules(): Promise<Rule[]>;
+  SetRules(rules: Rule[]): Promise<void>;
+  GetFindings(): Promise<Finding[]>;
+  ClearFindings(): Promise<void>;
+  ExportHAR(): Promise<void>;
+  SaveProject(): Promise<void>;
+  LoadProject(): Promise<void>;
   SetIntercept(enabled: boolean): Promise<void>;
   SetInterceptResponses(enabled: boolean): Promise<void>;
   ForwardHeld(id: number, raw: string): Promise<void>;
@@ -155,10 +192,17 @@ export const api = {
   exportRootCA: (path: string) => backend().ExportRootCA(path),
   getScope: () => backend().GetScope(),
   setScope: (cfg: ScopeConfig) => backend().SetScope(cfg),
-  listHistory: (text: string, methods: string[]) =>
-    backend().ListHistory(text, methods),
+  listHistory: (text: string, methods: string[], searchBodies: boolean) =>
+    backend().ListHistory(text, methods, searchBodies),
   clearHistory: () => backend().ClearHistory(),
   getFlow: (id: number) => backend().GetFlow(id),
+  getRules: () => backend().GetRules(),
+  setRules: (rules: Rule[]) => backend().SetRules(rules),
+  getFindings: () => backend().GetFindings(),
+  clearFindings: () => backend().ClearFindings(),
+  exportHAR: () => backend().ExportHAR(),
+  saveProject: () => backend().SaveProject(),
+  loadProject: () => backend().LoadProject(),
   setIntercept: (on: boolean) => backend().SetIntercept(on),
   setInterceptResponses: (on: boolean) => backend().SetInterceptResponses(on),
   forwardHeld: (id: number, raw: string) => backend().ForwardHeld(id, raw),

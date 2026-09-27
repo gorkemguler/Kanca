@@ -78,6 +78,21 @@ func (s *Store) Add(f *proxy.Flow) {
 	}
 }
 
+// Snapshot returns all retained flows in capture order (oldest first). The
+// slice is a fresh copy; the flows themselves are shared, so callers must not
+// mutate them.
+func (s *Store) Snapshot() []*proxy.Flow {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*proxy.Flow, 0, len(s.order))
+	for _, id := range s.order {
+		if f := s.byID[id]; f != nil {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
 // Get returns the full flow for id.
 func (s *Store) Get(id int64) (*proxy.Flow, bool) {
 	s.mu.RLock()
@@ -111,6 +126,9 @@ type Filter struct {
 	Scope func(host string) bool
 	// HideStatus lists status codes to omit (e.g. 404s).
 	HideStatus map[int]bool
+	// SearchBodies, when true, also matches Text against the request and
+	// response bodies (slower over a large history, so it is opt-in).
+	SearchBodies bool
 }
 
 func (f Filter) matches(e *proxy.Flow) bool {
@@ -135,11 +153,23 @@ func (f Filter) matches(e *proxy.Flow) bool {
 	if f.Text != "" {
 		needle := strings.ToLower(f.Text)
 		hay := strings.ToLower(e.Method + " " + e.Host + " " + e.Path)
-		if !strings.Contains(hay, needle) {
-			return false
+		if strings.Contains(hay, needle) {
+			return true
 		}
+		if f.SearchBodies {
+			if bytesContainsFold(e.Request.Body, needle) || bytesContainsFold(e.Response.Body, needle) {
+				return true
+			}
+		}
+		return false
 	}
 	return true
+}
+
+// bytesContainsFold reports whether b contains the lowercased needle,
+// case-insensitively, without allocating a full lowercased copy of b.
+func bytesContainsFold(b []byte, lowerNeedle string) bool {
+	return strings.Contains(strings.ToLower(string(b)), lowerNeedle)
 }
 
 // List returns matching entries newest-first. A zero Filter returns all.
