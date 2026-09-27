@@ -24,6 +24,7 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
 | **Body search** | Filter the history across request/response bodies, not just method/host/path. |
 | **Passive scanner** | Flags security issues from observed traffic (missing CSP/HSTS/X-Content-Type-Options, insecure cookies, permissive CORS, version disclosure) without sending any extra requests. |
 | **Save / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2. |
+| **WebSocket support** | `ws://` and `wss://` upgrades are bridged transparently (they used to break, since `Upgrade`/`Connection` are stripped as hop-by-hop for ordinary HTTP) with a live, per-connection frame log — hand-rolled RFC 6455 framing, no dependency. |
 
 ## Architecture
 
@@ -35,6 +36,7 @@ mimlec/                     core module — pure Go standard library, no deps
 ├── internal/
 │   ├── cert/               on-the-fly certificate authority (root + leaves)
 │   ├── proxy/              the intercepting proxy engine + HTTP wire codec
+│   │                       (incl. WebSocket bridging/frame capture)
 │   ├── history/            searchable, bounded flow log
 │   ├── repeater/           edit-and-resend workspaces
 │   ├── intruder/           payload templating + concurrent attack engine
@@ -114,7 +116,7 @@ drop/edit paths (`internal/proxy/proxy_test.go`).
 
 ## Roadmap
 
-Planned next: WebSocket interception, brotli response decoding, HAR *import*
+Planned next: brotli response decoding, HAR *import*
 (to complement export), an active scanner, a target site-map tree, and
 request/response diffing in the repeater.
 

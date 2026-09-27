@@ -63,6 +63,12 @@ type Proxy struct {
 	// the wire; a nil hook is a no-op.
 	rewriteMu sync.RWMutex
 	rewrite   func(phase, host string, raw []byte) []byte
+
+	// wsMu guards the optional WebSocket observability hooks.
+	wsMu      sync.RWMutex
+	onWSOpen  func(id int64, host, url string)
+	onWSFrame func(id int64, host, url string, f WSFrame)
+	onWSClose func(id int64, host, url string)
 }
 
 // New constructs a Proxy. cfg.CA is required.
@@ -126,6 +132,57 @@ func (p *Proxy) OnFlow(fn func(*Flow)) {
 // OnHold registers a callback invoked whenever a transaction is paused by the
 // interceptor and awaits a decision.
 func (p *Proxy) OnHold(fn func(*Held)) { p.interceptor.setOnHold(fn) }
+
+// OnWSOpen registers a callback invoked once a WebSocket upgrade completes
+// successfully (upstream replied 101) and frame bridging begins.
+func (p *Proxy) OnWSOpen(fn func(id int64, host, url string)) {
+	p.wsMu.Lock()
+	p.onWSOpen = fn
+	p.wsMu.Unlock()
+}
+
+// OnWSFrame registers a callback invoked for each successfully decoded
+// WebSocket frame crossing an open connection, in either direction.
+func (p *Proxy) OnWSFrame(fn func(id int64, host, url string, f WSFrame)) {
+	p.wsMu.Lock()
+	p.onWSFrame = fn
+	p.wsMu.Unlock()
+}
+
+// OnWSClose registers a callback invoked once a WebSocket connection's
+// bridging ends (either side closed or errored).
+func (p *Proxy) OnWSClose(fn func(id int64, host, url string)) {
+	p.wsMu.Lock()
+	p.onWSClose = fn
+	p.wsMu.Unlock()
+}
+
+func (p *Proxy) emitWSOpen(id int64, host, url string) {
+	p.wsMu.RLock()
+	fn := p.onWSOpen
+	p.wsMu.RUnlock()
+	if fn != nil {
+		fn(id, host, url)
+	}
+}
+
+func (p *Proxy) emitWSFrame(id int64, host, url string, f WSFrame) {
+	p.wsMu.RLock()
+	fn := p.onWSFrame
+	p.wsMu.RUnlock()
+	if fn != nil {
+		fn(id, host, url, f)
+	}
+}
+
+func (p *Proxy) emitWSClose(id int64, host, url string) {
+	p.wsMu.RLock()
+	fn := p.onWSClose
+	p.wsMu.RUnlock()
+	if fn != nil {
+		fn(id, host, url)
+	}
+}
 
 // SetScope restricts interception/recording to hosts for which fn returns
 // true. A nil fn (the default) records everything.
@@ -220,6 +277,13 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Host == "" {
 		r.URL.Host = r.Host
 	}
+	if isWebSocketUpgrade(r.Header) {
+		// A WebSocket handshake is not a request/response transaction: it
+		// hijacks the connection and bridges frames for the connection's
+		// lifetime, so it bypasses the normal capture/interception pipeline.
+		p.handleWebSocketPlain(w, r)
+		return
+	}
 	f := p.roundTrip("http", r.Host, r)
 	if f == nil {
 		http.Error(w, "dropped by interceptor", http.StatusForbidden)
@@ -287,6 +351,14 @@ func (p *Proxy) serveTunnel(conn net.Conn, authority string) {
 		req.URL.Host = authority
 		if req.Host == "" {
 			req.Host = authority
+		}
+
+		if isWebSocketUpgrade(req.Header) {
+			// Bridging takes over the connection for its remaining lifetime;
+			// once it returns there is nothing left to read further requests
+			// from, so the tunnel's request loop ends here.
+			p.handleWebSocketTunnel(conn, br, req, authority)
+			return
 		}
 
 		f := p.roundTrip("https", authority, req)

@@ -6,6 +6,7 @@ import RepeaterView from "./components/RepeaterView";
 import IntruderView from "./components/IntruderView";
 import RulesView from "./components/RulesView";
 import FindingsView from "./components/FindingsView";
+import WebSocketView from "./components/WebSocketView";
 import SettingsView from "./components/SettingsView";
 
 type TabKey =
@@ -15,6 +16,7 @@ type TabKey =
   | "intruder"
   | "rules"
   | "findings"
+  | "websocket"
   | "settings";
 
 export default function App() {
@@ -81,6 +83,7 @@ export default function App() {
     { key: "intruder", label: "Intruder" },
     { key: "rules", label: "Match/Replace" },
     { key: "findings", label: "Findings" },
+    { key: "websocket", label: "WebSocket" },
     { key: "settings", label: "CA / Settings" },
   ];
 
@@ -155,6 +158,7 @@ export default function App() {
         )}
         {tab === "rules" && <RulesView />}
         {tab === "findings" && <FindingsView onOpenFlow={openFlow} />}
+        {tab === "websocket" && <WebSocketView />}
         {tab === "settings" && <SettingsView />}
       </div>
     </div>

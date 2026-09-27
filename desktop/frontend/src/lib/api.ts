@@ -124,6 +124,27 @@ export interface IntruderResult {
   error?: string;
 }
 
+export interface WSFrameView {
+  direction: "client->server" | "server->client";
+  opcode: string;
+  final: boolean;
+  masked: boolean;
+  length: number;
+  text: string;
+  isText: boolean;
+  at: string;
+}
+
+export interface WSSession {
+  id: number;
+  host: string;
+  url: string;
+  open: boolean;
+  openedAt: string;
+  closedAt?: string;
+  frames: WSFrameView[] | null;
+}
+
 // The shape Wails injects on window. Only the members we use are declared.
 interface WailsBackend {
   GetStatus(): Promise<ProxyStatus>;
@@ -147,6 +168,8 @@ interface WailsBackend {
   ExportHAR(): Promise<void>;
   SaveProject(): Promise<void>;
   LoadProject(): Promise<void>;
+  GetWSSessions(): Promise<WSSession[]>;
+  ClearWSSessions(): Promise<void>;
   SetIntercept(enabled: boolean): Promise<void>;
   SetInterceptResponses(enabled: boolean): Promise<void>;
   ForwardHeld(id: number, raw: string): Promise<void>;
@@ -203,6 +226,8 @@ export const api = {
   exportHAR: () => backend().ExportHAR(),
   saveProject: () => backend().SaveProject(),
   loadProject: () => backend().LoadProject(),
+  getWSSessions: () => backend().GetWSSessions(),
+  clearWSSessions: () => backend().ClearWSSessions(),
   setIntercept: (on: boolean) => backend().SetIntercept(on),
   setInterceptResponses: (on: boolean) => backend().SetInterceptResponses(on),
   forwardHeld: (id: number, raw: string) => backend().ForwardHeld(id, raw),

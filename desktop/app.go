@@ -46,6 +46,7 @@ type App struct {
 
 	rules   *rules.Set
 	scanner *scanner.Scanner
+	ws      *wsStore
 }
 
 // NewApp constructs the application backend, loading (or creating) the root CA.
@@ -62,6 +63,7 @@ func NewApp() (*App, error) {
 		addr:    "127.0.0.1:8080",
 		rules:   rules.NewSet(),
 		scanner: scanner.New(),
+		ws:      newWSStore(),
 	}, nil
 }
 
@@ -77,6 +79,9 @@ func (a *App) startup(ctx context.Context) {
 	a.scanner.OnFinding(func(fnd scanner.Finding) {
 		wruntime.EventsEmit(a.ctx, "scanner:finding", fnd)
 	})
+	a.ws.onEvent = func(kind string, session *WSSession, frame *WSFrameView) {
+		wruntime.EventsEmit(a.ctx, "ws:"+kind, session)
+	}
 }
 
 // ---- Proxy lifecycle -------------------------------------------------------
@@ -114,6 +119,9 @@ func (a *App) StartProxy(addr string) (ProxyStatus, error) {
 	})
 	p.SetScope(a.scopeMatcher())
 	p.SetRewriter(a.rulesRewriter())
+	p.OnWSOpen(a.ws.onOpen)
+	p.OnWSFrame(a.ws.onFrame)
+	p.OnWSClose(a.ws.onClose)
 	if err := p.Start(); err != nil {
 		return ProxyStatus{}, err
 	}
@@ -237,6 +245,14 @@ func (a *App) GetFindings() []scanner.Finding { return a.scanner.Findings() }
 
 // ClearFindings discards recorded findings.
 func (a *App) ClearFindings() { a.scanner.Clear() }
+
+// ---- WebSocket sessions -----------------------------------------------------
+
+// GetWSSessions returns all captured WebSocket connections and their frames.
+func (a *App) GetWSSessions() []WSSession { return a.ws.List() }
+
+// ClearWSSessions discards all captured WebSocket sessions and frames.
+func (a *App) ClearWSSessions() { a.ws.Clear() }
 
 // ---- Export & project ------------------------------------------------------
 
