@@ -8,6 +8,10 @@
   <a href="https://github.com/gorkemguler/Mimlec/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
 </p>
 
+<p align="center">
+  <strong>English</strong> · <a href="README.tr.md">Türkçe</a>
+</p>
+
 # Mimlec
 
 An intercepting HTTP/HTTPS proxy for **authorised** web-application security
