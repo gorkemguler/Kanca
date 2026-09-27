@@ -1,3 +1,13 @@
+<p align="center">
+  <img src="assets/banner.svg" alt="Mimlec — intercepting HTTP/HTTPS proxy for authorised security testing" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/gorkemguler/Mimlec/actions/workflows/ci.yml"><img src="https://github.com/gorkemguler/Mimlec/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/gorkemguler/Mimlec/blob/main/go.mod"><img src="https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white" alt="Go version"></a>
+  <a href="https://github.com/gorkemguler/Mimlec/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+</p>
+
 # Mimlec
 
 An intercepting HTTP/HTTPS proxy for **authorised** web-application security

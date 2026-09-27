@@ -1,0 +1,75 @@
+<svg viewBox="0 0 1200 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="mimlecTitle mimlecDesc">
+  <title id="mimlecTitle">Mimlec</title>
+  <desc id="mimlecDesc">Intercepting HTTP/HTTPS proxy for authorised security testing</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#161b22"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3fb950"/>
+      <stop offset="100%" stop-color="#58a6ff"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#ffffff" stroke-opacity="0.035" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b949e"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="300" fill="url(#bg)"/>
+  <rect width="1200" height="300" fill="url(#grid)"/>
+
+  <!-- traffic path: client -> mimlec -> server -->
+  <g transform="translate(0,182)">
+    <line x1="140" y1="0" x2="330" y2="0" stroke="#30363d" stroke-width="2" marker-end="url(#arrow)"/>
+    <line x1="470" y1="0" x2="660" y2="0" stroke="#30363d" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- client -->
+    <g transform="translate(60,-30)">
+      <rect width="80" height="60" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5"/>
+      <rect x="10" y="10" width="60" height="34" rx="3" fill="#0d1117"/>
+      <rect x="24" y="52" width="32" height="5" rx="2" fill="#30363d"/>
+    </g>
+    <text x="100" y="55" text-anchor="middle" fill="#8b949e" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">Client</text>
+
+    <!-- mimlec node (interception point) -->
+    <g transform="translate(400,0)">
+      <circle r="46" fill="#0d1117" stroke="url(#accent)" stroke-width="3"/>
+      <circle r="46" fill="#3fb950" fill-opacity="0.06"/>
+      <path d="M -16 -6 L 0 10 L 20 -14" fill="none" stroke="#3fb950" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <text x="400" y="80" text-anchor="middle" fill="#c9d1d9" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600">Mimlec</text>
+
+    <!-- server -->
+    <g transform="translate(700,-32)">
+      <rect width="80" height="16" rx="3" fill="#21262d" stroke="#30363d" stroke-width="1.5"/>
+      <rect width="80" height="16" y="22" rx="3" fill="#21262d" stroke="#30363d" stroke-width="1.5"/>
+      <rect width="80" height="16" y="44" rx="3" fill="#21262d" stroke="#30363d" stroke-width="1.5"/>
+      <circle cx="10" cy="8" r="2.5" fill="#3fb950"/>
+      <circle cx="10" cy="30" r="2.5" fill="#3fb950"/>
+      <circle cx="10" cy="52" r="2.5" fill="#3fb950"/>
+    </g>
+    <text x="740" y="55" text-anchor="middle" fill="#8b949e" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">Target servers</text>
+  </g>
+
+  <!-- title block -->
+  <g transform="translate(870,0)">
+    <line x1="0" y1="70" x2="0" y2="230" stroke="#30363d" stroke-width="1.5"/>
+    <text x="30" y="130" fill="#f0f6fc" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="46" font-weight="700" letter-spacing="1">Mimlec</text>
+    <text x="30" y="163" fill="#8b949e" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">Intercepting HTTP/HTTPS proxy</text>
+    <text x="30" y="185" fill="#8b949e" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">for authorised security testing</text>
+
+    <g transform="translate(30,205)" font-family="'SFMono-Regular', Consolas, monospace" font-size="12" font-weight="600">
+      <rect x="0" y="0" width="34" height="20" rx="4" fill="#3fb950" fill-opacity="0.15" stroke="#3fb950" stroke-opacity="0.4"/>
+      <text x="17" y="14" text-anchor="middle" fill="#3fb950">Go</text>
+
+      <rect x="44" y="0" width="66" height="20" rx="4" fill="#58a6ff" fill-opacity="0.15" stroke="#58a6ff" stroke-opacity="0.4"/>
+      <text x="77" y="14" text-anchor="middle" fill="#58a6ff">Wails v2</text>
+
+      <rect x="120" y="0" width="52" height="20" rx="4" fill="#d29922" fill-opacity="0.15" stroke="#d29922" stroke-opacity="0.4"/>
+      <text x="146" y="14" text-anchor="middle" fill="#d29922">MIT</text>
+    </g>
+  </g>
+</svg>
