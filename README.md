@@ -19,11 +19,12 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
 | **Repeater** | Take any request, tweak it freely, and resend it as many times as you like — each tab keeps its own send history. |
 | **Intruder / fuzzer** | Automated payload injection with four attack types (sniper, battering ram, pitchfork, cluster bomb), concurrency control and grep-match highlighting. |
 | **Target scope** | Restrict recording to chosen hosts (exact, parent-domain or `*.` wildcard); out-of-scope traffic is still proxied but not logged. |
-| **Readable bodies** | `gzip`/`deflate` responses are transparently decoded for display, while the proxy forwards the untouched bytes. |
+| **Readable bodies** | `gzip`, `deflate` and `brotli` responses are transparently decoded for display, while the proxy forwards the untouched bytes. |
+| **Site map** | Captured traffic arranged as a per-host tree of URL paths, so you can see a target's structure rather than a flat log. |
 | **Match & replace** | Regex substitutions applied on the wire — rewrite the request line, a header, or the body of outbound requests and inbound responses (Content-Length is kept correct). |
 | **Body search** | Filter the history across request/response bodies, not just method/host/path. |
 | **Passive scanner** | Flags security issues from observed traffic (missing CSP/HSTS/X-Content-Type-Options, insecure cookies, permissive CORS, version disclosure) without sending any extra requests. |
-| **Save / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2. |
+| **Save / import / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2 and import HAR captures from other tools. |
 | **WebSocket support** | `ws://` and `wss://` upgrades are bridged transparently (they used to break, since `Upgrade`/`Connection` are stripped as hop-by-hop for ordinary HTTP) with a live, per-connection frame log — hand-rolled RFC 6455 framing, no dependency. |
 
 ## Architecture
@@ -42,7 +43,8 @@ mimlec/                     core module — pure Go standard library, no deps
 │   ├── intruder/           payload templating + concurrent attack engine
 │   ├── rules/              match-and-replace (on-the-wire regex rewrites)
 │   ├── scanner/            passive security checks over captured flows
-│   ├── har/                HAR 1.2 export
+│   ├── sitemap/            per-host URL path tree built from captured flows
+│   ├── har/                HAR 1.2 export and import
 │   └── project/            save/load a session (flows, rules, findings, scope)
 ├── cmd/mimlec/             headless CLI runner (no GUI required)
 └── desktop/                separate module — Wails v2 desktop app
@@ -116,9 +118,8 @@ drop/edit paths (`internal/proxy/proxy_test.go`).
 
 ## Roadmap
 
-Planned next: brotli response decoding, HAR *import*
-(to complement export), an active scanner, a target site-map tree, and
-request/response diffing in the repeater.
+Planned next: an active scanner, request/response diffing in the repeater, and
+richer intruder payload generators (numeric ranges, wordlists, encoders).
 
 ## License
 

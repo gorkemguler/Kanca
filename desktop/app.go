@@ -17,6 +17,7 @@ import (
 	"github.com/gorkemguler/mimlec/internal/repeater"
 	"github.com/gorkemguler/mimlec/internal/rules"
 	"github.com/gorkemguler/mimlec/internal/scanner"
+	"github.com/gorkemguler/mimlec/internal/sitemap"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -336,6 +337,43 @@ func (a *App) loadProjectFrom(path string) error {
 		wruntime.EventsEmit(a.ctx, "project:loaded", len(f.Flows))
 	}
 	return nil
+}
+
+// ImportHAR prompts for a HAR file and loads its entries into the history,
+// replacing the current capture (a HAR has no rules/scope of its own). The
+// scanner re-inspects imported flows. A cancelled dialog is a no-op.
+func (a *App) ImportHAR() error {
+	path, err := wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{
+		Title:   "Import HAR",
+		Filters: []wruntime.FileFilter{{DisplayName: "HAR archive (*.har, *.json)", Pattern: "*.har;*.json"}},
+	})
+	if err != nil || path == "" {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	flows, err := har.Unmarshal(data)
+	if err != nil {
+		return err
+	}
+	a.store.Clear()
+	a.scanner.Clear()
+	for _, fl := range flows {
+		a.store.Add(fl)
+	}
+	if a.ctx != nil {
+		wruntime.EventsEmit(a.ctx, "project:loaded", len(flows))
+	}
+	return nil
+}
+
+// ---- Site map ---------------------------------------------------------------
+
+// GetSiteMap returns the captured traffic arranged as a per-host path tree.
+func (a *App) GetSiteMap() []*sitemap.Node {
+	return sitemap.Build(a.store.Snapshot())
 }
 
 // ---- History ---------------------------------------------------------------

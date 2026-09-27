@@ -145,6 +145,17 @@ export interface WSSession {
   frames: WSFrameView[] | null;
 }
 
+export interface SiteMapNode {
+  name: string;
+  path: string;
+  url?: string;
+  method?: string;
+  statusCode?: number;
+  flowId?: number;
+  count: number;
+  children?: SiteMapNode[] | null;
+}
+
 // The shape Wails injects on window. Only the members we use are declared.
 interface WailsBackend {
   GetStatus(): Promise<ProxyStatus>;
@@ -170,6 +181,8 @@ interface WailsBackend {
   LoadProject(): Promise<void>;
   GetWSSessions(): Promise<WSSession[]>;
   ClearWSSessions(): Promise<void>;
+  ImportHAR(): Promise<void>;
+  GetSiteMap(): Promise<SiteMapNode[]>;
   SetIntercept(enabled: boolean): Promise<void>;
   SetInterceptResponses(enabled: boolean): Promise<void>;
   ForwardHeld(id: number, raw: string): Promise<void>;
@@ -228,6 +241,8 @@ export const api = {
   loadProject: () => backend().LoadProject(),
   getWSSessions: () => backend().GetWSSessions(),
   clearWSSessions: () => backend().ClearWSSessions(),
+  importHAR: () => backend().ImportHAR(),
+  getSiteMap: () => backend().GetSiteMap(),
   setIntercept: (on: boolean) => backend().SetIntercept(on),
   setInterceptResponses: (on: boolean) => backend().SetInterceptResponses(on),
   forwardHeld: (id: number, raw: string) => backend().ForwardHeld(id, raw),

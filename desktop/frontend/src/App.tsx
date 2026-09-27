@@ -7,10 +7,12 @@ import IntruderView from "./components/IntruderView";
 import RulesView from "./components/RulesView";
 import FindingsView from "./components/FindingsView";
 import WebSocketView from "./components/WebSocketView";
+import SiteMapView from "./components/SiteMapView";
 import SettingsView from "./components/SettingsView";
 
 type TabKey =
   | "history"
+  | "sitemap"
   | "intercept"
   | "repeater"
   | "intruder"
@@ -78,6 +80,7 @@ export default function App() {
 
   const tabs: { key: TabKey; label: string; badge?: number }[] = [
     { key: "history", label: "Proxy History" },
+    { key: "sitemap", label: "Site Map" },
     { key: "intercept", label: "Intercept", badge: queueCount || undefined },
     { key: "repeater", label: "Repeater" },
     { key: "intruder", label: "Intruder" },
@@ -112,6 +115,9 @@ export default function App() {
         </button>
         <button disabled={!!busy} onClick={() => run("Save project", api.saveProject)}>
           Save
+        </button>
+        <button disabled={!!busy} onClick={() => run("Import HAR", api.importHAR)}>
+          Import HAR
         </button>
         <button disabled={!!busy} onClick={() => run("Export HAR", api.exportHAR)}>
           Export HAR
@@ -159,6 +165,7 @@ export default function App() {
         {tab === "rules" && <RulesView />}
         {tab === "findings" && <FindingsView onOpenFlow={openFlow} />}
         {tab === "websocket" && <WebSocketView />}
+        {tab === "sitemap" && <SiteMapView />}
         {tab === "settings" && <SettingsView />}
       </div>
     </div>

@@ -61,7 +61,7 @@ func toFlowView(f *proxy.Flow) *FlowView {
 // body, preserving the original header order otherwise. The proxy still
 // forwards the untouched on-the-wire bytes; this affects display only.
 func displayResponse(f *proxy.Flow) (raw string, encoding string) {
-	decoded, enc := proxy.DecodeBody(f.Response.Headers, f.Response.Body)
+	decoded, enc := decodeForDisplay(f.Response.Headers, f.Response.Body)
 	if enc == "" {
 		return string(f.Response.Raw), ""
 	}
