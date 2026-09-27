@@ -121,7 +121,8 @@ export default function HistoryView({ onSendToRepeater, onSendToIntruder }: Prop
                   title={
                     view.error
                       ? "Response — error"
-                      : `Response — ${view.statusCode}`
+                      : `Response — ${view.statusCode}` +
+                        (view.respEncoding ? ` · decoded ${view.respEncoding}` : "")
                   }
                   value={view.error ? view.error : view.responseRaw}
                 />

@@ -18,6 +18,8 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
 | **Interception queue** | Pause requests (and optionally responses), edit the raw bytes, then forward or drop them. |
 | **Repeater** | Take any request, tweak it freely, and resend it as many times as you like — each tab keeps its own send history. |
 | **Intruder / fuzzer** | Automated payload injection with four attack types (sniper, battering ram, pitchfork, cluster bomb), concurrency control and grep-match highlighting. |
+| **Target scope** | Restrict recording to chosen hosts (exact, parent-domain or `*.` wildcard); out-of-scope traffic is still proxied but not logged. |
+| **Readable bodies** | `gzip`/`deflate` responses are transparently decoded for display, while the proxy forwards the untouched bytes. |
 
 ## Architecture
 
@@ -105,8 +107,8 @@ drop/edit paths (`internal/proxy/proxy_test.go`).
 ## Roadmap
 
 Planned next: request/response search across bodies, match-and-replace rules,
-scope management UI, a passive issue scanner, session/project persistence, and
-import/export of captured traffic.
+brotli response decoding, a passive issue scanner, session/project
+persistence, WebSocket support, and import/export of captured traffic (HAR).
 
 ## License
 

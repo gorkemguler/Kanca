@@ -40,6 +40,7 @@ export interface FlowView {
   responseRaw: string;
   respLength: number;
   mime: string;
+  respEncoding?: string;
 }
 
 export interface HeldView {
@@ -82,6 +83,11 @@ export interface IntruderPreview {
   requests: number;
 }
 
+export interface ScopeConfig {
+  enabled: boolean;
+  hosts: string[];
+}
+
 export interface IntruderResult {
   index: number;
   payloads: string[];
@@ -99,6 +105,8 @@ interface WailsBackend {
   StopProxy(): Promise<void>;
   GetRootCAPEM(): Promise<string>;
   ExportRootCA(path: string): Promise<void>;
+  GetScope(): Promise<ScopeConfig>;
+  SetScope(cfg: ScopeConfig): Promise<void>;
   ListHistory(text: string, methods: string[]): Promise<Entry[]>;
   ClearHistory(): Promise<void>;
   GetFlow(id: number): Promise<FlowView>;
@@ -145,6 +153,8 @@ export const api = {
   stopProxy: () => backend().StopProxy(),
   getRootCA: () => backend().GetRootCAPEM(),
   exportRootCA: (path: string) => backend().ExportRootCA(path),
+  getScope: () => backend().GetScope(),
+  setScope: (cfg: ScopeConfig) => backend().SetScope(cfg),
   listHistory: (text: string, methods: string[]) =>
     backend().ListHistory(text, methods),
   clearHistory: () => backend().ClearHistory(),

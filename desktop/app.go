@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/gorkemguler/mimlec/internal/cert"
@@ -31,6 +32,10 @@ type App struct {
 
 	attackMu     sync.Mutex
 	attackCancel context.CancelFunc
+
+	scopeMu      sync.Mutex
+	scopeEnabled bool
+	scopeHosts   []string
 }
 
 // NewApp constructs the application backend, loading (or creating) the root CA.
@@ -91,6 +96,7 @@ func (a *App) StartProxy(addr string) (ProxyStatus, error) {
 	p.OnHold(func(h *proxy.Held) {
 		wruntime.EventsEmit(a.ctx, "intercept:hold", toHeldView(h))
 	})
+	p.SetScope(a.scopeMatcher())
 	if err := p.Start(); err != nil {
 		return ProxyStatus{}, err
 	}
@@ -121,6 +127,75 @@ func (a *App) GetRootCAPEM() string { return string(a.ca.RootCertPEM()) }
 // ExportRootCA writes the root certificate to path.
 func (a *App) ExportRootCA(path string) error {
 	return os.WriteFile(path, a.ca.RootCertPEM(), 0o644)
+}
+
+// ---- Scope -----------------------------------------------------------------
+
+// ScopeConfig is the frontend-facing target scope.
+type ScopeConfig struct {
+	Enabled bool     `json:"enabled"`
+	Hosts   []string `json:"hosts"`
+}
+
+// GetScope returns the current scope configuration.
+func (a *App) GetScope() ScopeConfig {
+	a.scopeMu.Lock()
+	defer a.scopeMu.Unlock()
+	return ScopeConfig{Enabled: a.scopeEnabled, Hosts: append([]string(nil), a.scopeHosts...)}
+}
+
+// SetScope updates which hosts are recorded. When enabled, only traffic whose
+// host matches one of the patterns is added to the history; everything else is
+// still proxied but not recorded. Patterns match a host exactly, as a parent
+// domain ("example.com" covers "api.example.com"), or via a "*." wildcard.
+func (a *App) SetScope(cfg ScopeConfig) {
+	a.scopeMu.Lock()
+	a.scopeEnabled = cfg.Enabled
+	a.scopeHosts = normalizeHosts(cfg.Hosts)
+	a.scopeMu.Unlock()
+	a.withProxy(func(p *proxy.Proxy) { p.SetScope(a.scopeMatcher()) })
+}
+
+// scopeMatcher builds the host predicate for the proxy, or nil to record all.
+func (a *App) scopeMatcher() func(host string) bool {
+	a.scopeMu.Lock()
+	enabled := a.scopeEnabled
+	hosts := append([]string(nil), a.scopeHosts...)
+	a.scopeMu.Unlock()
+	if !enabled || len(hosts) == 0 {
+		return nil
+	}
+	return func(host string) bool {
+		host = strings.ToLower(host)
+		for _, pat := range hosts {
+			if hostMatches(host, pat) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func hostMatches(host, pat string) bool {
+	if pat == "" {
+		return false
+	}
+	if strings.HasPrefix(pat, "*.") {
+		suffix := pat[1:] // ".example.com"
+		return strings.HasSuffix(host, suffix)
+	}
+	return host == pat || strings.HasSuffix(host, "."+pat)
+}
+
+func normalizeHosts(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, h := range in {
+		h = strings.ToLower(strings.TrimSpace(h))
+		if h != "" {
+			out = append(out, h)
+		}
+	}
+	return out
 }
 
 // ---- History ---------------------------------------------------------------
