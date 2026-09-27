@@ -166,6 +166,13 @@ func (p *Proxy) Stop(ctx context.Context) error {
 	if srv == nil {
 		return nil
 	}
+	// Release any paused transactions first. A held request blocks inside
+	// hold() with its handler goroutine still running, so a graceful
+	// Shutdown would otherwise wait on it until ctx expires (or forever, if
+	// the caller passed a context without a deadline).
+	p.interceptor.SetEnabled(false)
+	p.interceptor.SetInterceptResponses(false)
+	p.interceptor.ForwardAll()
 	return srv.Shutdown(ctx)
 }
 

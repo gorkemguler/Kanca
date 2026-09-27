@@ -217,3 +217,87 @@ func indexOf(hay, needle []byte) int {
 	}
 	return -1
 }
+
+func TestStopReleasesHeldRequests(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "ok")
+	}))
+	defer backend.Close()
+
+	p, ca := newProxy(t)
+	ic := p.Interceptor()
+	ic.SetEnabled(true)
+
+	held := make(chan struct{}, 1)
+	// OnHold intentionally does NOT resolve — the request stays paused.
+	p.OnHold(func(*proxy.Held) {
+		select {
+		case held <- struct{}{}:
+		default:
+		}
+	})
+
+	client := clientThrough(t, p, ca)
+	go func() { _, _ = client.Get(backend.URL + "/hangs") }()
+
+	select {
+	case <-held:
+	case <-time.After(2 * time.Second):
+		t.Fatal("request was never held")
+	}
+
+	// Stop must return promptly even though a request is paused: it releases
+	// held items before shutting the listener down.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	start := time.Now()
+	if err := p.Stop(ctx); err != nil {
+		t.Fatalf("stop returned error: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("stop took too long (%v); held request was not released", elapsed)
+	}
+}
+
+func TestInterceptsAndEditsResponse(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "orig") // 4 bytes
+	}))
+	defer backend.Close()
+
+	p, ca := newProxy(t)
+	ic := p.Interceptor()
+	ic.SetEnabled(true)
+	ic.SetInterceptResponses(true)
+	p.OnHold(func(h *proxy.Held) {
+		if h.Direction == proxy.DirectionResponse {
+			// Same-length swap keeps Content-Length valid.
+			edited := replaceBytes(h.Raw, "orig", "XXXX")
+			ic.Resolve(h.ID, proxy.DecisionForward, edited)
+			return
+		}
+		ic.Resolve(h.ID, proxy.DecisionForward, nil)
+	})
+
+	client := clientThrough(t, p, ca)
+	resp, err := client.Get(backend.URL + "/r")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if string(body) != "XXXX" {
+		t.Fatalf("response edit not applied, body = %q", body)
+	}
+}
+
+func replaceBytes(raw []byte, old, new string) []byte {
+	i := indexOf(raw, []byte(old))
+	if i < 0 {
+		return raw
+	}
+	out := append([]byte(nil), raw[:i]...)
+	out = append(out, []byte(new)...)
+	out = append(out, raw[i+len(old):]...)
+	return out
+}
