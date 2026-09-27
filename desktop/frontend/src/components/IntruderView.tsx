@@ -7,12 +7,57 @@ import {
   IntruderConfig,
   IntruderPreview,
   IntruderResult,
+  PayloadSpec,
+  Processor,
 } from "../lib/api";
 
 interface Props {
   // A flow sent from History to seed the template/target.
   seed: FlowView | null;
   clearSeed: () => void;
+}
+
+// PSet is the editor state for one payload set: either a literal list or a
+// generated numeric range, plus optional processors applied to each value.
+interface PSet {
+  mode: "list" | "numbers";
+  list: string;
+  from: number;
+  to: number;
+  step: number;
+  pad: number;
+  processors: Processor[];
+}
+
+const newPSet = (list = ""): PSet => ({
+  mode: "list",
+  list,
+  from: 1,
+  to: 100,
+  step: 1,
+  pad: 0,
+  processors: [],
+});
+
+const ALL_PROCESSORS: Processor[] = [
+  "url",
+  "base64",
+  "lower",
+  "upper",
+  "md5",
+  "sha1",
+  "sha256",
+];
+
+function toSpec(p: PSet): PayloadSpec {
+  const processors = p.processors.length ? p.processors : undefined;
+  if (p.mode === "numbers") {
+    return { list: [], numbers: { from: p.from, to: p.to, step: p.step, pad: p.pad }, processors };
+  }
+  return {
+    list: p.list.split("\n").filter((x) => x.length > 0),
+    processors,
+  };
 }
 
 const ATTACKS: { value: AttackType; label: string; hint: string }[] = [
@@ -32,8 +77,8 @@ export default function IntruderView({ seed, clearSeed }: Props) {
   const [type, setType] = useState<AttackType>("sniper");
   const [threads, setThreads] = useState(10);
   const [grep, setGrep] = useState("");
-  const [payloadSets, setPayloadSets] = useState<string[]>([
-    "admin\nroot\ntest\nguest",
+  const [payloadSets, setPayloadSets] = useState<PSet[]>([
+    newPSet("admin\nroot\ntest\nguest"),
   ]);
   const [preview, setPreview] = useState<IntruderPreview | null>(null);
   const [running, setRunning] = useState(false);
@@ -78,18 +123,20 @@ export default function IntruderView({ seed, clearSeed }: Props) {
     };
   }, []);
 
-  const cfg = (): IntruderConfig => ({
-    type,
-    scheme,
-    host,
-    template,
-    marker,
-    grepMatch: grep,
-    threads,
-    payloads: payloadSets.map((s) =>
-      s.split("\n").map((x) => x).filter((x) => x.length > 0)
-    ),
-  });
+  const cfg = (): IntruderConfig => {
+    const sets = multiSet ? payloadSets : payloadSets.slice(0, 1);
+    return {
+      type,
+      scheme,
+      host,
+      template,
+      marker,
+      grepMatch: grep,
+      threads,
+      payloads: [],
+      specs: sets.map(toSpec),
+    };
+  };
 
   const doPreview = async () => {
     setError("");
@@ -119,8 +166,21 @@ export default function IntruderView({ seed, clearSeed }: Props) {
   };
 
   const multiSet = type === "pitchfork" || type === "cluster_bomb";
-  const setPayloadAt = (i: number, v: string) =>
-    setPayloadSets((prev) => prev.map((s, j) => (j === i ? v : s)));
+  const patchSet = (i: number, p: Partial<PSet>) =>
+    setPayloadSets((prev) => prev.map((s, j) => (j === i ? { ...s, ...p } : s)));
+  const toggleProc = (i: number, proc: Processor) =>
+    setPayloadSets((prev) =>
+      prev.map((s, j) => {
+        if (j !== i) return s;
+        const has = s.processors.includes(proc);
+        return {
+          ...s,
+          processors: has
+            ? s.processors.filter((p) => p !== proc)
+            : [...s.processors, proc],
+        };
+      })
+    );
 
   return (
     <div className="split-h">
@@ -191,7 +251,7 @@ export default function IntruderView({ seed, clearSeed }: Props) {
             <b>Payload sets</b>
             {multiSet && (
               <button
-                onClick={() => setPayloadSets((p) => [...p, ""])}
+                onClick={() => setPayloadSets((p) => [...p, newPSet()])}
                 style={{ marginLeft: "auto" }}
               >
                 + Set
@@ -199,15 +259,72 @@ export default function IntruderView({ seed, clearSeed }: Props) {
             )}
           </div>
           {(multiSet ? payloadSets : payloadSets.slice(0, 1)).map((s, i) => (
-            <label className="field" key={i}>
-              {multiSet ? `Set ${i + 1} (position ${i + 1})` : "Payloads (one per line)"}
-              <textarea
-                className="payloads"
-                spellCheck={false}
-                value={s}
-                onChange={(e) => setPayloadAt(i, e.target.value)}
-              />
-            </label>
+            <div className="col" key={i} style={{ borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+              <div className="row">
+                <span className="dim">
+                  {multiSet ? `Set ${i + 1} (position ${i + 1})` : "Payloads"}
+                </span>
+                <select
+                  value={s.mode}
+                  onChange={(e) => patchSet(i, { mode: e.target.value as PSet["mode"] })}
+                >
+                  <option value="list">List</option>
+                  <option value="numbers">Numbers</option>
+                </select>
+                {multiSet && payloadSets.length > 1 && (
+                  <button
+                    className="danger"
+                    style={{ marginLeft: "auto" }}
+                    onClick={() =>
+                      setPayloadSets((prev) => prev.filter((_, j) => j !== i))
+                    }
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              {s.mode === "list" ? (
+                <textarea
+                  className="payloads"
+                  spellCheck={false}
+                  placeholder="one payload per line"
+                  value={s.list}
+                  onChange={(e) => patchSet(i, { list: e.target.value })}
+                />
+              ) : (
+                <div className="row">
+                  <label className="field" style={{ width: 70 }}>
+                    From
+                    <input type="number" value={s.from} onChange={(e) => patchSet(i, { from: Number(e.target.value) })} />
+                  </label>
+                  <label className="field" style={{ width: 70 }}>
+                    To
+                    <input type="number" value={s.to} onChange={(e) => patchSet(i, { to: Number(e.target.value) })} />
+                  </label>
+                  <label className="field" style={{ width: 60 }}>
+                    Step
+                    <input type="number" value={s.step} onChange={(e) => patchSet(i, { step: Number(e.target.value) })} />
+                  </label>
+                  <label className="field" style={{ width: 60 }}>
+                    Pad
+                    <input type="number" value={s.pad} onChange={(e) => patchSet(i, { pad: Number(e.target.value) })} />
+                  </label>
+                </div>
+              )}
+              <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
+                <span className="dim">Process:</span>
+                {ALL_PROCESSORS.map((proc) => (
+                  <label key={proc} className="row" style={{ gap: 3 }} title={`apply ${proc} to each payload`}>
+                    <input
+                      type="checkbox"
+                      checked={s.processors.includes(proc)}
+                      onChange={() => toggleProc(i, proc)}
+                    />
+                    <span className="dim">{proc}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
 

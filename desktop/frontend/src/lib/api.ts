@@ -67,6 +67,28 @@ export type AttackType =
   | "pitchfork"
   | "cluster_bomb";
 
+export type Processor =
+  | "url"
+  | "base64"
+  | "lower"
+  | "upper"
+  | "md5"
+  | "sha1"
+  | "sha256";
+
+export interface NumberRange {
+  from: number;
+  to: number;
+  step: number;
+  pad: number;
+}
+
+export interface PayloadSpec {
+  list: string[];
+  numbers?: NumberRange | null;
+  processors?: Processor[];
+}
+
 export interface IntruderConfig {
   type: AttackType;
   scheme: string;
@@ -74,6 +96,7 @@ export interface IntruderConfig {
   template: string;
   marker: string;
   payloads: string[][];
+  specs?: PayloadSpec[];
   grepMatch: string;
   threads: number;
 }

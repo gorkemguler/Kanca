@@ -467,14 +467,31 @@ func (a *App) RepeaterClose(id int64) { a.rep.Close(id) }
 
 // IntruderConfig is the frontend-facing attack description.
 type IntruderConfig struct {
-	Type      string     `json:"type"`
-	Scheme    string     `json:"scheme"`
-	Host      string     `json:"host"`
-	Template  string     `json:"template"`
-	Marker    string     `json:"marker"`
-	Payloads  [][]string `json:"payloads"`
-	GrepMatch string     `json:"grepMatch"`
-	Threads   int        `json:"threads"`
+	Type     string `json:"type"`
+	Scheme   string `json:"scheme"`
+	Host     string `json:"host"`
+	Template string `json:"template"`
+	Marker   string `json:"marker"`
+	// Payloads is the literal, pre-expanded form (kept for compatibility).
+	Payloads [][]string `json:"payloads"`
+	// Specs, when non-empty, is expanded (numeric ranges + processors) into
+	// the payload sets and takes precedence over Payloads.
+	Specs     []intruder.PayloadSpec `json:"specs,omitempty"`
+	GrepMatch string                 `json:"grepMatch"`
+	Threads   int                    `json:"threads"`
+}
+
+// resolvePayloads expands Specs when present, otherwise returns the literal
+// Payloads unchanged.
+func (cfg IntruderConfig) resolvePayloads() [][]string {
+	if len(cfg.Specs) == 0 {
+		return cfg.Payloads
+	}
+	out := make([][]string, 0, len(cfg.Specs))
+	for _, s := range cfg.Specs {
+		out = append(out, s.Generate())
+	}
+	return out
 }
 
 // IntruderPreview reports how many requests a config would issue and how many
@@ -542,7 +559,7 @@ func (a *App) buildAttack(cfg IntruderConfig) (*intruder.Attack, *intruder.Templ
 		Type:             intruder.AttackType(cfg.Type),
 		Scheme:           cfg.Scheme,
 		Host:             cfg.Host,
-		Payloads:         cfg.Payloads,
+		Payloads:         cfg.resolvePayloads(),
 		Concurrency:      cfg.Threads,
 		GrepMatch:        cfg.GrepMatch,
 		InsecureUpstream: true,

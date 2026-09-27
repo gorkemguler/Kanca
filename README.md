@@ -17,7 +17,7 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
 | **HTTP history** | Every request/response is captured, searchable and filterable, with the full raw bytes of each side. |
 | **Interception queue** | Pause requests (and optionally responses), edit the raw bytes, then forward or drop them. |
 | **Repeater** | Take any request, tweak it freely, and resend it as many times as you like — each tab keeps its own send history. |
-| **Intruder / fuzzer** | Automated payload injection with four attack types (sniper, battering ram, pitchfork, cluster bomb), concurrency control and grep-match highlighting. |
+| **Intruder / fuzzer** | Automated payload injection with four attack types (sniper, battering ram, pitchfork, cluster bomb), concurrency control and grep-match highlighting. Payload sets come from a list or a generated numeric range, with per-set processors (URL/base64 encode, upper/lower, MD5/SHA-1/SHA-256). |
 | **Target scope** | Restrict recording to chosen hosts (exact, parent-domain or `*.` wildcard); out-of-scope traffic is still proxied but not logged. |
 | **Readable bodies** | `gzip`, `deflate` and `brotli` responses are transparently decoded for display, while the proxy forwards the untouched bytes. |
 | **Site map** | Captured traffic arranged as a per-host tree of URL paths, so you can see a target's structure rather than a flat log. |
@@ -118,8 +118,7 @@ drop/edit paths (`internal/proxy/proxy_test.go`).
 
 ## Roadmap
 
-Planned next: an active scanner, request/response diffing in the repeater, and
-richer intruder payload generators (numeric ranges, wordlists, encoders).
+Planned next: an active scanner and request/response diffing in the repeater.
 
 ## License
 
