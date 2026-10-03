@@ -210,7 +210,7 @@ interface WailsBackend {
   SetRules(rules: Rule[]): Promise<void>;
   GetFindings(): Promise<Finding[]>;
   ClearFindings(): Promise<void>;
-  ActiveScan(flowId: number): Promise<void>;
+  ActiveScan(flowId: number, aggressive: boolean): Promise<void>;
   ExportHAR(): Promise<void>;
   SaveProject(): Promise<void>;
   LoadProject(): Promise<void>;
@@ -272,7 +272,8 @@ export const api = {
   setRules: (rules: Rule[]) => backend().SetRules(rules),
   getFindings: () => backend().GetFindings(),
   clearFindings: () => backend().ClearFindings(),
-  activeScan: (flowId: number) => backend().ActiveScan(flowId),
+  activeScan: (flowId: number, aggressive: boolean) =>
+    backend().ActiveScan(flowId, aggressive),
   exportHAR: () => backend().ExportHAR(),
   saveProject: () => backend().SaveProject(),
   loadProject: () => backend().LoadProject(),

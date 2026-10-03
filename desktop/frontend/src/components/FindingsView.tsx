@@ -49,7 +49,7 @@ export default function FindingsView({ onOpenFlow }: Props) {
   return (
     <div className="split-v">
       <div className="toolbar">
-        <b>Passive findings</b>
+        <b>Findings</b>
         {(["high", "medium", "low", "info"] as Severity[]).map((s) =>
           counts[s] ? (
             <span key={s} className="pill" style={{ color: sevColor[s] }}>
@@ -58,7 +58,7 @@ export default function FindingsView({ onOpenFlow }: Props) {
           ) : null
         )}
         <span className="dim">
-          detected from observed traffic — no extra requests are sent
+          passive checks over observed traffic, plus any active-scan results
         </span>
         <span className="grow" />
         <button onClick={() => api.clearFindings().then(refresh)}>Clear</button>

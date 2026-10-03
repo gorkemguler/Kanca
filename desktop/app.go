@@ -249,11 +249,13 @@ func (a *App) GetFindings() []scanner.Finding { return a.scanner.Findings() }
 // ClearFindings discards recorded findings.
 func (a *App) ClearFindings() { a.scanner.Clear() }
 
-// ActiveScan runs a small, non-destructive set of probes against a single
-// captured request and merges any findings into the Findings list. It refuses
-// out-of-scope hosts when a scope is configured. Probing runs in the
-// background; results arrive as scanner:finding events, then activescan:done.
-func (a *App) ActiveScan(flowID int64) error {
+// ActiveScan runs a bounded set of probes against a single captured request and
+// merges any findings into the Findings list. It refuses out-of-scope hosts when
+// a scope is configured. When aggressive is true it additionally runs
+// boolean/time-based SQLi and time-based command-injection probes, which make the
+// target do observable work. Probing runs in the background; results arrive as
+// scanner:finding events, then activescan:done.
+func (a *App) ActiveScan(flowID int64, aggressive bool) error {
 	f, ok := a.store.Get(flowID)
 	if !ok {
 		return fmt.Errorf("flow %d not found", flowID)
@@ -266,6 +268,7 @@ func (a *App) ActiveScan(flowID int64) error {
 		Host:             f.Host,
 		Raw:              f.Request.Raw,
 		InsecureUpstream: true,
+		Aggressive:       aggressive,
 	}
 	go func() {
 		findings, err := activescan.Run(context.Background(), cfg)

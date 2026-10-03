@@ -149,14 +149,31 @@ export default function HistoryView({
                 <button onClick={() => onSendToRepeater(view.id)}>→ Repeater</button>
                 <button onClick={() => onSendToIntruder(view)}>→ Intruder</button>
                 <button
-                  title="Run non-destructive active probes against this request (in-scope hosts only); results appear in Findings"
+                  title="Run non-destructive active probes (reflection/XSS, SQLi error, path traversal, open redirect, SSTI, CRLF) against this request; in-scope hosts only. Results appear in Findings."
                   onClick={() =>
                     api
-                      .activeScan(view.id)
+                      .activeScan(view.id, false)
                       .catch((e: any) => alert("Active scan failed: " + (e?.message ?? e)))
                   }
                 >
                   Active scan
+                </button>
+                <button
+                  className="danger"
+                  title="Also run boolean/time-based SQLi and time-based command-injection probes. These make the target do observable work (e.g. a bounded sleep). Authorised targets only."
+                  onClick={() => {
+                    if (
+                      !confirm(
+                        "Aggressive scan also sends boolean/time-based SQLi and command-injection probes, which make the target do real work (e.g. deliberate delays). Only run this against systems you are authorised to test.\n\nContinue?"
+                      )
+                    )
+                      return;
+                    api
+                      .activeScan(view.id, true)
+                      .catch((e: any) => alert("Active scan failed: " + (e?.message ?? e)));
+                  }}
+                >
+                  Active scan+
                 </button>
               </div>
               <div className="split-h">
