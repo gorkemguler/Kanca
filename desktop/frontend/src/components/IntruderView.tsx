@@ -100,10 +100,12 @@ export default function IntruderView({ seed, clearSeed }: Props) {
       bufRef.current.push(r);
     });
     const offD = on("intruder:done", () => {
-      setResults((prev) =>
-        [...prev, ...bufRef.current].sort((a, b) => a.index - b.index)
-      );
+      // Take the batch now: the updater runs later, after the reset below.
+      const batch = bufRef.current;
       bufRef.current = [];
+      setResults((prev) =>
+        [...prev, ...batch].sort((a, b) => a.index - b.index)
+      );
       setRunning(false);
     });
     // Flush the buffer periodically so a large attack stays responsive.
@@ -152,10 +154,12 @@ export default function IntruderView({ seed, clearSeed }: Props) {
     setError("");
     setResults([]);
     bufRef.current = [];
+    // Set before awaiting: a short attack can emit "intruder:done" before the call returns.
+    setRunning(true);
     try {
       await api.startIntruder(cfg());
-      setRunning(true);
     } catch (e: any) {
+      setRunning(false);
       setError(String(e?.message ?? e));
     }
   };
