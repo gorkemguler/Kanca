@@ -23,6 +23,23 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
 > against systems you own or are explicitly permitted to test. You are
 > responsible for complying with all applicable laws and agreements.
 
+## Screenshots
+
+![Proxy history: a browser session captured through Kanca, with a login request and its response](assets/screenshots/history.png)
+
+<table>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/repeater.png" alt="Repeater"><br><sub><b>Repeater</b> — resending a product lookup with a stray quote surfaces a SQL error.</sub></td>
+    <td width="50%"><img src="assets/screenshots/intruder.png" alt="Intruder"><br><sub><b>Intruder</b> — enumerating user IDs 1–30; grep-match flags the two admin accounts.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/findings.png" alt="Findings"><br><sub><b>Findings</b> — passive header/cookie checks plus active-scan leads.</sub></td>
+    <td width="50%"><img src="assets/screenshots/sitemap.png" alt="Site map"><br><sub><b>Site map</b> — captured endpoints as a per-host tree.</sub></td>
+  </tr>
+</table>
+
+<sub>Screenshots show Kanca against a deliberately weak demo shop running locally.</sub>
+
 ## Features (MVP)
 
 | Feature | What it does |

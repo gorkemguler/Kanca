@@ -26,6 +26,23 @@ fuzzlamanıza olanak tanır.
 > sistemlere karşı kullanın. Geçerli tüm yasa ve sözleşmelere uymak sizin
 > sorumluluğunuzdadır.
 
+## Ekran görüntüleri
+
+![Proxy geçmişi: Kanca üzerinden yakalanan bir tarayıcı oturumu, giriş isteği ve yanıtıyla birlikte](assets/screenshots/history.png)
+
+<table>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/repeater.png" alt="Repeater"><br><sub><b>Repeater</b> — ürün sorgusunu tek tırnakla yeniden göndermek SQL hatasını ortaya çıkarıyor.</sub></td>
+    <td width="50%"><img src="assets/screenshots/intruder.png" alt="Intruder"><br><sub><b>Intruder</b> — 1–30 arası kullanıcı ID'leri taranıyor; grep-match iki admin hesabını işaretliyor.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/findings.png" alt="Bulgular"><br><sub><b>Bulgular</b> — pasif header/cookie kontrolleri ve aktif tarama ipuçları.</sub></td>
+    <td width="50%"><img src="assets/screenshots/sitemap.png" alt="Site haritası"><br><sub><b>Site haritası</b> — yakalanan endpoint'ler host bazlı bir ağaç olarak.</sub></td>
+  </tr>
+</table>
+
+<sub>Ekran görüntüleri, yerelde çalışan ve bilerek zayıf bırakılmış bir demo mağazaya karşı alınmıştır.</sub>
+
 ## Özellikler (MVP)
 
 | Özellik | Ne yapar |
