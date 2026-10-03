@@ -1,4 +1,4 @@
-// Package proxy implements Mimlec's intercepting HTTP/HTTPS proxy. Clients
+// Package proxy implements Kanca's intercepting HTTP/HTTPS proxy. Clients
 // configure it as their system/browser proxy; it records every transaction as
 // a Flow, optionally pausing traffic for inspection and editing, then forwards
 // it to the intended upstream server.
@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorkemguler/mimlec/internal/cert"
+	"github.com/gorkemguler/kanca/internal/cert"
 )
 
 // Config holds tunables for a Proxy. The zero value is not valid; use it via

@@ -1,4 +1,4 @@
-// Command mimlec-desktop is the Wails-based desktop UI for the Mimlec
+// Command kanca-desktop is the Wails-based desktop UI for the Kanca
 // intercepting proxy. Build it with the Wails CLI:
 //
 //	cd desktop && wails dev      # live-reload development
@@ -23,11 +23,11 @@ var assets embed.FS
 func main() {
 	app, err := NewApp()
 	if err != nil {
-		log.Fatalf("mimlec: %v", err)
+		log.Fatalf("kanca: %v", err)
 	}
 
 	err = wails.Run(&options.App{
-		Title:     "Mimlec",
+		Title:     "Kanca",
 		Width:     1280,
 		Height:    820,
 		MinWidth:  960,
@@ -41,6 +41,6 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Fatalf("mimlec: %v", err)
+		log.Fatalf("kanca: %v", err)
 	}
 }

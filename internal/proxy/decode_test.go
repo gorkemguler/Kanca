@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 func TestDecodeBodyGzip(t *testing.T) {

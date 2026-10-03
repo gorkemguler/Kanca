@@ -1,27 +1,27 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="Mimlec — yetkili güvenlik testleri için araya giren HTTP/HTTPS proxy" width="100%">
+  <img src="assets/banner.svg" alt="Kanca — yetkili güvenlik testleri için araya giren HTTP/HTTPS proxy" width="100%">
 </p>
 
 <p align="center">
-  <a href="https://github.com/gorkemguler/Mimlec/actions/workflows/ci.yml"><img src="https://github.com/gorkemguler/Mimlec/actions/workflows/ci.yml/badge.svg" alt="CI durumu"></a>
-  <a href="https://github.com/gorkemguler/Mimlec/blob/main/go.mod"><img src="https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white" alt="Go sürümü"></a>
-  <a href="https://github.com/gorkemguler/Mimlec/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="Lisans: MIT"></a>
+  <a href="https://github.com/gorkemguler/Kanca/actions/workflows/ci.yml"><img src="https://github.com/gorkemguler/Kanca/actions/workflows/ci.yml/badge.svg" alt="CI durumu"></a>
+  <a href="https://github.com/gorkemguler/Kanca/blob/main/go.mod"><img src="https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white" alt="Go sürümü"></a>
+  <a href="https://github.com/gorkemguler/Kanca/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="Lisans: MIT"></a>
 </p>
 
 <p align="center">
   <a href="README.md">English</a> · <strong>Türkçe</strong>
 </p>
 
-# Mimlec
+# Kanca
 
 **Yetkili** web uygulaması güvenlik testleri için araya giren (intercepting)
 bir HTTP/HTTPS proxy — Burp Suite gibi araçlara açık ve üzerinde
-değişiklik yapılabilir bir alternatif. Mimlec, bir tarayıcı (veya herhangi
+değişiklik yapılabilir bir alternatif. Kanca, bir tarayıcı (veya herhangi
 bir HTTP istemcisi) ile konuştuğu sunucular arasına girer, her isteği/yanıtı
 kaydeder ve isteklerinizi duraklatıp düzenlemenize, tekrar göndermenize ve
 fuzzlamanıza olanak tanır.
 
-> ⚠️ **Sadece yetkili kullanım içindir.** Mimlec trafiği çözer ve değiştirir.
+> ⚠️ **Sadece yetkili kullanım içindir.** Kanca trafiği çözer ve değiştirir.
 > Yalnızca sahibi olduğunuz veya test etmek için açıkça izin aldığınız
 > sistemlere karşı kullanın. Geçerli tüm yasa ve sözleşmelere uymak sizin
 > sorumluluğunuzdadır.
@@ -51,10 +51,10 @@ Proje iki Go modülüne ayrılmıştır; böylece engine bağımlılıksız ve t
 test edilebilir kalırken, desktop kabuğu GUI araç zincirini taşır.
 
 ```
-mimlec/                     çekirdek modül — saf Go standart kütüphanesi, bağımlılık yok
+kanca/                      çekirdek modül — saf Go standart kütüphanesi, bağımlılık yok
 ├── internal/
 │   ├── cert/               anlık üretilen sertifika otoritesi (root + leaf sertifikalar)
-│   ├── proxy/               araya giren proxy motoru + HTTP wire codec
+│   ├── proxy/              araya giren proxy motoru + HTTP wire codec
 │   │                       (WebSocket köprüleme/frame yakalama dahil)
 │   ├── history/            aranabilir, sınırlı boyutlu flow kaydı
 │   ├── repeater/           düzenle-ve-tekrar-gönder çalışma alanları
@@ -62,11 +62,11 @@ mimlec/                     çekirdek modül — saf Go standart kütüphanesi, 
 │   ├── rules/              match-and-replace (hat üzerinde regex yeniden yazımı)
 │   ├── scanner/            yakalanan flow'lar üzerinde pasif güvenlik kontrolleri
 │   ├── activescan/         yıkıcı olmayan aktif problar (opt-in, kapsamla sınırlı)
-│   ├── sitemap/             yakalanan flow'lardan oluşturulan host bazlı URL yolu ağacı
+│   ├── sitemap/            yakalanan flow'lardan oluşturulan host bazlı URL yolu ağacı
 │   ├── diff/               satır bazlı metin diff'i (repeater yanıt karşılaştırması)
 │   ├── har/                HAR 1.2 dışa/içe aktarım
 │   └── project/            bir oturumu kaydet/yükle (flow'lar, kurallar, bulgular, kapsam)
-├── cmd/mimlec/             GUI gerektirmeyen headless CLI çalıştırıcı
+├── cmd/kanca/              GUI gerektirmeyen headless CLI çalıştırıcı
 └── desktop/                ayrı bir modül — Wails v2 desktop uygulaması
     ├── app.go              Go ↔ frontend bağlantıları
     ├── main.go             Wails giriş noktası
@@ -83,7 +83,7 @@ CLI, GUI olmadan tüm proxy motorunu çalıştırır; sunucularda, CI'da veya
 işlerin çalıştığını doğrulamak için kullanışlıdır.
 
 ```bash
-go run ./cmd/mimlec -addr 127.0.0.1:8080
+go run ./cmd/kanca -addr 127.0.0.1:8080
 ```
 
 Ardından tarayıcınızın HTTP/HTTPS proxy ayarını `127.0.0.1:8080` olarak
@@ -91,7 +91,7 @@ belirleyin. HTTPS'i de yakalamak için root CA'yı dışa aktarıp
 tarayıcınızın/işletim sisteminizin güven deposuna ekleyin:
 
 ```bash
-go run ./cmd/mimlec -export-ca mimlec-ca.pem
+go run ./cmd/kanca -export-ca kanca-ca.pem
 ```
 
 Bayraklar (flags):
@@ -99,7 +99,7 @@ Bayraklar (flags):
 | Bayrak | Varsayılan | Anlamı |
 | --- | --- | --- |
 | `-addr` | `127.0.0.1:8080` | proxy dinleme adresi |
-| `-cadir` | `~/.mimlec` | root CA'nın saklandığı yer |
+| `-cadir` | `~/.kanca` | root CA'nın saklandığı yer |
 | `-export-ca PATH` | — | root sertifikayı `PATH`'e yazıp çıkar |
 | `-insecure-upstream` | `true` | upstream sunucu sertifikalarının doğrulamasını atla |
 | `-max-flows` | `100000` | bellekte tutulan azami işlem (transaction) sayısı |

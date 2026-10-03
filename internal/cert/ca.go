@@ -1,6 +1,6 @@
 // Package cert provides an on-the-fly certificate authority used by the
 // intercepting proxy to present per-host leaf certificates that the user's
-// browser trusts once the Mimlec root CA is installed.
+// browser trusts once the Kanca root CA is installed.
 //
 // The root CA private key never leaves the user's machine. Leaf certificates
 // are generated lazily per SNI host and cached in memory for the lifetime of
@@ -34,8 +34,8 @@ const (
 	// limit the blast radius if one is ever exported.
 	leafValidity = 90 * 24 * time.Hour
 	// organization is embedded in generated certificates.
-	organization   = "Mimlec Proxy"
-	rootCommonName = "Mimlec Root CA"
+	organization   = "Kanca Proxy"
+	rootCommonName = "Kanca Root CA"
 )
 
 // Authority is an in-memory certificate authority backed by a persisted root

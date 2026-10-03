@@ -3,7 +3,7 @@ package sitemap
 import (
 	"testing"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 func mk(id int64, scheme, host, path, method string, status int) *proxy.Flow {

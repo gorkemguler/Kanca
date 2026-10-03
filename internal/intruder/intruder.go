@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 // AttackType selects how payloads are distributed across positions.

@@ -8,12 +8,12 @@ import (
 func TestReplaceHeader(t *testing.T) {
 	s := NewSet()
 	if _, err := s.Add(Rule{Name: "ua", Enabled: true, Phase: PhaseRequest, Part: PartHeaders,
-		Match: `User-Agent: .*`, Replace: "User-Agent: mimlec"}); err != nil {
+		Match: `User-Agent: .*`, Replace: "User-Agent: kanca"}); err != nil {
 		t.Fatal(err)
 	}
 	raw := []byte("GET / HTTP/1.1\r\nHost: x\r\nUser-Agent: curl/8\r\n\r\n")
 	out := string(s.Apply(PhaseRequest, "x", raw))
-	if !strings.Contains(out, "User-Agent: mimlec") || strings.Contains(out, "curl/8") {
+	if !strings.Contains(out, "User-Agent: kanca") || strings.Contains(out, "curl/8") {
 		t.Fatalf("header not replaced: %q", out)
 	}
 }

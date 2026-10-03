@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 func TestMarshalHAR(t *testing.T) {
@@ -81,7 +81,7 @@ func TestBinaryBodyBase64(t *testing.T) {
 }
 
 func TestUnmarshalRoundTrip(t *testing.T) {
-	reqH := http.Header{"User-Agent": {"mimlec"}, "Content-Type": {"application/json"}}
+	reqH := http.Header{"User-Agent": {"kanca"}, "Content-Type": {"application/json"}}
 	respH := http.Header{"Content-Type": {"text/html"}, "Set-Cookie": {"a=1"}}
 	orig := &proxy.Flow{
 		ID: 1, Scheme: "https", Method: "POST", Host: "api.example.com",
@@ -115,7 +115,7 @@ func TestUnmarshalRoundTrip(t *testing.T) {
 	if string(got.Response.Body) != "<h1>ok</h1>" {
 		t.Fatalf("response body lost: %q", got.Response.Body)
 	}
-	if got.Request.Headers.Get("User-Agent") != "mimlec" {
+	if got.Request.Headers.Get("User-Agent") != "kanca" {
 		t.Fatalf("request headers lost: %v", got.Request.Headers)
 	}
 	if got.Response.Headers.Get("Set-Cookie") != "a=1" {

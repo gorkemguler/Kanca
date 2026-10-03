@@ -94,7 +94,7 @@ export default function App() {
     <div className="app">
       <div className="topbar">
         <div className="brand">
-          MIMLEC <span>intercepting proxy</span>
+          KANCA <span>intercepting proxy</span>
         </div>
         <span className={"status-dot" + (status.running ? " on" : "")} />
         <span className="dim">

@@ -17,7 +17,7 @@ func TestRepeaterSend(t *testing.T) {
 	u, _ := url.Parse(backend.URL)
 
 	r := New(true)
-	raw := []byte("GET / HTTP/1.1\r\nHost: " + u.Host + "\r\nUser-Agent: mimlec-repeater\r\n\r\n")
+	raw := []byte("GET / HTTP/1.1\r\nHost: " + u.Host + "\r\nUser-Agent: kanca-repeater\r\n\r\n")
 	tab := r.NewTab("probe", "http", u.Host, raw)
 
 	f, ok := r.Send(context.Background(), tab.ID)
@@ -30,7 +30,7 @@ func TestRepeaterSend(t *testing.T) {
 	if f.StatusCode != 200 {
 		t.Fatalf("status = %d", f.StatusCode)
 	}
-	if got := f.Response.BodyString(); got != "method=GET ua=mimlec-repeater" {
+	if got := f.Response.BodyString(); got != "method=GET ua=kanca-repeater" {
 		t.Fatalf("body = %q", got)
 	}
 

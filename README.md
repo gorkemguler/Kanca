@@ -1,25 +1,25 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="Mimlec — intercepting HTTP/HTTPS proxy for authorised security testing" width="100%">
+  <img src="assets/banner.svg" alt="Kanca — intercepting HTTP/HTTPS proxy for authorised security testing" width="100%">
 </p>
 
 <p align="center">
-  <a href="https://github.com/gorkemguler/Mimlec/actions/workflows/ci.yml"><img src="https://github.com/gorkemguler/Mimlec/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
-  <a href="https://github.com/gorkemguler/Mimlec/blob/main/go.mod"><img src="https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white" alt="Go version"></a>
-  <a href="https://github.com/gorkemguler/Mimlec/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+  <a href="https://github.com/gorkemguler/Kanca/actions/workflows/ci.yml"><img src="https://github.com/gorkemguler/Kanca/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/gorkemguler/Kanca/blob/main/go.mod"><img src="https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white" alt="Go version"></a>
+  <a href="https://github.com/gorkemguler/Kanca/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
 </p>
 
 <p align="center">
   <strong>English</strong> · <a href="README.tr.md">Türkçe</a>
 </p>
 
-# Mimlec
+# Kanca
 
 An intercepting HTTP/HTTPS proxy for **authorised** web-application security
-testing — an open, hackable alternative to tools like Burp Suite. Mimlec sits
+testing — an open, hackable alternative to tools like Burp Suite. Kanca sits
 between a browser (or any HTTP client) and the servers it talks to, records
 every transaction, and lets you pause, edit, replay and fuzz requests.
 
-> ⚠️ **Authorised use only.** Mimlec decrypts and modifies traffic. Use it only
+> ⚠️ **Authorised use only.** Kanca decrypts and modifies traffic. Use it only
 > against systems you own or are explicitly permitted to test. You are
 > responsible for complying with all applicable laws and agreements.
 
@@ -48,7 +48,7 @@ The project is split into two Go modules so the engine stays dependency-free
 and fully testable, while the desktop shell carries the GUI toolchain.
 
 ```
-mimlec/                     core module — pure Go standard library, no deps
+kanca/                      core module — pure Go standard library, no deps
 ├── internal/
 │   ├── cert/               on-the-fly certificate authority (root + leaves)
 │   ├── proxy/              the intercepting proxy engine + HTTP wire codec
@@ -63,7 +63,7 @@ mimlec/                     core module — pure Go standard library, no deps
 │   ├── diff/               line-oriented text diff (repeater response compare)
 │   ├── har/                HAR 1.2 export and import
 │   └── project/            save/load a session (flows, rules, findings, scope)
-├── cmd/mimlec/             headless CLI runner (no GUI required)
+├── cmd/kanca/              headless CLI runner (no GUI required)
 └── desktop/                separate module — Wails v2 desktop app
     ├── app.go              Go ↔ frontend bindings
     ├── main.go             Wails entry point
@@ -79,14 +79,14 @@ The CLI runs the full proxy engine without a GUI; handy for servers, CI, or
 just verifying things work.
 
 ```bash
-go run ./cmd/mimlec -addr 127.0.0.1:8080
+go run ./cmd/kanca -addr 127.0.0.1:8080
 ```
 
 Then point your browser's HTTP/HTTPS proxy at `127.0.0.1:8080`. To intercept
 HTTPS, export the root CA and import it into your browser/OS trust store:
 
 ```bash
-go run ./cmd/mimlec -export-ca mimlec-ca.pem
+go run ./cmd/kanca -export-ca kanca-ca.pem
 ```
 
 Flags:
@@ -94,7 +94,7 @@ Flags:
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `-addr` | `127.0.0.1:8080` | proxy listen address |
-| `-cadir` | `~/.mimlec` | where the root CA is stored |
+| `-cadir` | `~/.kanca` | where the root CA is stored |
 | `-export-ca PATH` | — | write the root certificate to `PATH` and exit |
 | `-insecure-upstream` | `true` | skip verification of upstream server certs |
 | `-max-flows` | `100000` | max transactions retained in memory |

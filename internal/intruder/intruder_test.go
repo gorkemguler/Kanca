@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -61,9 +62,9 @@ func TestPlanCounts(t *testing.T) {
 }
 
 func TestAttackRunsAgainstServer(t *testing.T) {
-	var hits int
+	var hits atomic.Int32
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		hits++
+		hits.Add(1)
 		id := r.URL.Query().Get("id")
 		if id == "admin" {
 			fmt.Fprint(w, "SECRET-FLAG")
@@ -103,7 +104,7 @@ func TestAttackRunsAgainstServer(t *testing.T) {
 	if matched != 1 {
 		t.Fatalf("matched = %d, want 1", matched)
 	}
-	if hits != 3 {
-		t.Fatalf("backend hits = %d, want 3", hits)
+	if got := hits.Load(); got != 3 {
+		t.Fatalf("backend hits = %d, want 3", got)
 	}
 }

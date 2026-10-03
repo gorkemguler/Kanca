@@ -1,10 +1,10 @@
-module github.com/gorkemguler/mimlec/desktop
+module github.com/gorkemguler/kanca/desktop
 
 go 1.24
 
 require (
 	github.com/andybalholm/brotli v1.2.5
-	github.com/gorkemguler/mimlec v0.0.0-00010101000000-000000000000
+	github.com/gorkemguler/kanca v0.0.0-00010101000000-000000000000
 	github.com/wailsapp/wails/v2 v2.9.2
 )
 
@@ -38,4 +38,4 @@ require (
 	golang.org/x/text v0.15.0 // indirect
 )
 
-replace github.com/gorkemguler/mimlec => ../
+replace github.com/gorkemguler/kanca => ../

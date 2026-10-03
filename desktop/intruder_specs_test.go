@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/gorkemguler/mimlec/internal/intruder"
+	"github.com/gorkemguler/kanca/internal/intruder"
 )
 
 func TestResolvePayloadsExpandsSpecs(t *testing.T) {

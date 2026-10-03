@@ -10,9 +10,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
-	"github.com/gorkemguler/mimlec/internal/rules"
-	"github.com/gorkemguler/mimlec/internal/scanner"
+	"github.com/gorkemguler/kanca/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/rules"
+	"github.com/gorkemguler/kanca/internal/scanner"
 )
 
 // File is the on-disk project structure. Byte fields (raw messages, bodies)

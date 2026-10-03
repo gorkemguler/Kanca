@@ -6,7 +6,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 // Tab is a single repeater workspace: an editable request bound to a target,

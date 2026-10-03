@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 // Entry is a lightweight projection of a Flow for list rendering. The full

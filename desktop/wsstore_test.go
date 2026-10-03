@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 func TestWSStoreLifecycle(t *testing.T) {

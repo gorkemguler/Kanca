@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
-	"github.com/gorkemguler/mimlec/internal/rules"
-	"github.com/gorkemguler/mimlec/internal/scanner"
+	"github.com/gorkemguler/kanca/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/rules"
+	"github.com/gorkemguler/kanca/internal/scanner"
 )
 
 func TestSaveLoadRoundTrip(t *testing.T) {
-	reqH := http.Header{"User-Agent": {"mimlec"}}
+	reqH := http.Header{"User-Agent": {"kanca"}}
 	respH := http.Header{"Content-Type": {"text/html"}}
 	orig := &proxy.Flow{
 		ID: 7, Scheme: "https", Method: "GET", Host: "example.com:443",
@@ -33,7 +33,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		ScopeHosts: []string{"example.com"},
 	}
 
-	path := filepath.Join(t.TempDir(), "session.mimlec.json")
+	path := filepath.Join(t.TempDir(), "session.kanca.json")
 	if err := Save(path, f); err != nil {
 		t.Fatalf("save: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if string(got.Response.Body) != "hi" {
 		t.Fatalf("response body lost: %q", got.Response.Body)
 	}
-	if got.Request.Headers.Get("User-Agent") != "mimlec" {
+	if got.Request.Headers.Get("User-Agent") != "kanca" {
 		t.Fatalf("request headers lost: %v", got.Request.Headers)
 	}
 }

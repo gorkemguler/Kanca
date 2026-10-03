@@ -17,8 +17,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
-	"github.com/gorkemguler/mimlec/internal/scanner"
+	"github.com/gorkemguler/kanca/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/scanner"
 )
 
 // Config describes one active scan of a single base request.
@@ -36,7 +36,7 @@ type Config struct {
 
 // reflectionToken is a benign, unique marker injected to detect whether input
 // is reflected verbatim into the response.
-const reflectionToken = "mimlecR3FL3CT0K"
+const reflectionToken = "kancaR3FL3CT0K"
 
 // sqlErrorSignatures are substrings that commonly appear in database error
 // messages. Their appearance after a single-quote probe (and absence from the

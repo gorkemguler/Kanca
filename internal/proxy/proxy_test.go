@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorkemguler/mimlec/internal/cert"
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/cert"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 // newProxy starts an intercepting proxy on a random loopback port and returns
@@ -179,7 +179,7 @@ func TestInterceptorEditsRequest(t *testing.T) {
 			return
 		}
 		// Inject a header into the raw request before forwarding.
-		edited := injectHeader(h.Raw, "X-Injected: mimlec")
+		edited := injectHeader(h.Raw, "X-Injected: kanca")
 		ic.Resolve(h.ID, proxy.DecisionForward, edited)
 	})
 
@@ -190,7 +190,7 @@ func TestInterceptorEditsRequest(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if string(body) != "hdr=mimlec" {
+	if string(body) != "hdr=kanca" {
 		t.Fatalf("edit not applied, body = %q", body)
 	}
 }

@@ -1,4 +1,4 @@
-// Command mimlec runs the Mimlec intercepting proxy headlessly, printing a
+// Command kanca runs the Kanca intercepting proxy headlessly, printing a
 // live log of captured transactions. It is handy for servers, CI and for
 // verifying the engine without the desktop UI.
 //
@@ -17,9 +17,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorkemguler/mimlec/internal/cert"
-	"github.com/gorkemguler/mimlec/internal/history"
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/cert"
+	"github.com/gorkemguler/kanca/internal/history"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 func main() {
@@ -60,7 +60,7 @@ func main() {
 		fatal("starting proxy: %v", err)
 	}
 
-	fmt.Printf("Mimlec proxy listening on http://%s\n", p.Addr())
+	fmt.Printf("Kanca proxy listening on http://%s\n", p.Addr())
 	fmt.Printf("Root CA: %s (import into your browser/OS to intercept HTTPS)\n", filepath.Join(*caDir, "ca-cert.pem"))
 	fmt.Println("Set this as your HTTP/HTTPS proxy. Ctrl-C to stop.")
 
@@ -100,12 +100,12 @@ func humanBytes(n int) string {
 func defaultCADir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ".mimlec"
+		return ".kanca"
 	}
-	return filepath.Join(home, ".mimlec")
+	return filepath.Join(home, ".kanca")
 }
 
 func fatal(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, "mimlec: "+format+"\n", args...)
+	fmt.Fprintf(os.Stderr, "kanca: "+format+"\n", args...)
 	os.Exit(1)
 }

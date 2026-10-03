@@ -7,7 +7,7 @@ import (
 
 	"github.com/andybalholm/brotli"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 // decodeForDisplay decodes a response body for display. It delegates gzip and

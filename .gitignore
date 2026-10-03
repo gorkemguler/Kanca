@@ -2,8 +2,8 @@
 *.exe
 *.test
 *.out
-/mimlec
-/cmd/mimlec/mimlec
+/kanca
+/cmd/kanca/kanca
 
 # Node / frontend
 node_modules/
@@ -18,7 +18,7 @@ desktop/frontend/dist/*
 desktop/frontend/wailsjs/
 
 # Local runtime state (root CA lives in the user's home by default)
-.mimlec/
+.kanca/
 
 # Editor / OS
 .DS_Store

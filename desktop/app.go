@@ -8,18 +8,18 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gorkemguler/mimlec/internal/activescan"
-	"github.com/gorkemguler/mimlec/internal/cert"
-	"github.com/gorkemguler/mimlec/internal/diff"
-	"github.com/gorkemguler/mimlec/internal/har"
-	"github.com/gorkemguler/mimlec/internal/history"
-	"github.com/gorkemguler/mimlec/internal/intruder"
-	"github.com/gorkemguler/mimlec/internal/project"
-	"github.com/gorkemguler/mimlec/internal/proxy"
-	"github.com/gorkemguler/mimlec/internal/repeater"
-	"github.com/gorkemguler/mimlec/internal/rules"
-	"github.com/gorkemguler/mimlec/internal/scanner"
-	"github.com/gorkemguler/mimlec/internal/sitemap"
+	"github.com/gorkemguler/kanca/internal/activescan"
+	"github.com/gorkemguler/kanca/internal/cert"
+	"github.com/gorkemguler/kanca/internal/diff"
+	"github.com/gorkemguler/kanca/internal/har"
+	"github.com/gorkemguler/kanca/internal/history"
+	"github.com/gorkemguler/kanca/internal/intruder"
+	"github.com/gorkemguler/kanca/internal/project"
+	"github.com/gorkemguler/kanca/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/repeater"
+	"github.com/gorkemguler/kanca/internal/rules"
+	"github.com/gorkemguler/kanca/internal/scanner"
+	"github.com/gorkemguler/kanca/internal/sitemap"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -307,7 +307,7 @@ func (a *App) ClearWSSessions() { a.ws.Clear() }
 func (a *App) ExportHAR() error {
 	path, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{
 		Title:           "Export HAR",
-		DefaultFilename: "mimlec-export.har",
+		DefaultFilename: "kanca-export.har",
 		Filters:         []wruntime.FileFilter{{DisplayName: "HAR archive (*.har)", Pattern: "*.har"}},
 	})
 	if err != nil || path == "" {
@@ -324,9 +324,9 @@ func (a *App) ExportHAR() error {
 // scope to a project file. A cancelled dialog is a no-op.
 func (a *App) SaveProject() error {
 	path, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{
-		Title:           "Save Mimlec project",
-		DefaultFilename: "session.mimlec.json",
-		Filters:         []wruntime.FileFilter{{DisplayName: "Mimlec project (*.json)", Pattern: "*.json"}},
+		Title:           "Save Kanca project",
+		DefaultFilename: "session.kanca.json",
+		Filters:         []wruntime.FileFilter{{DisplayName: "Kanca project (*.json)", Pattern: "*.json"}},
 	})
 	if err != nil || path == "" {
 		return err
@@ -356,8 +356,8 @@ func (a *App) saveProjectTo(path string) error {
 // no-op.
 func (a *App) LoadProject() error {
 	path, err := wruntime.OpenFileDialog(a.ctx, wruntime.OpenDialogOptions{
-		Title:   "Open Mimlec project",
-		Filters: []wruntime.FileFilter{{DisplayName: "Mimlec project (*.json)", Pattern: "*.json"}},
+		Title:   "Open Kanca project",
+		Filters: []wruntime.FileFilter{{DisplayName: "Kanca project (*.json)", Pattern: "*.json"}},
 	})
 	if err != nil || path == "" {
 		return err
@@ -637,7 +637,7 @@ func (a *App) withProxy(fn func(*proxy.Proxy)) {
 func configDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ".mimlec"
+		return ".kanca"
 	}
-	return filepath.Join(home, ".mimlec")
+	return filepath.Join(home, ".kanca")
 }

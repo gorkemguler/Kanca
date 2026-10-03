@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 // Severity ranks a finding.

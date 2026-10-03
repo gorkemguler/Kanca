@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorkemguler/mimlec/internal/cert"
+	"github.com/gorkemguler/kanca/internal/cert"
 )
 
 const wsMagicGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"

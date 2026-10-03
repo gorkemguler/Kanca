@@ -39,7 +39,7 @@ func headerHasToken(h http.Header, name, token string) bool {
 // proxying stays byte-transparent regardless of whether capture succeeds. On
 // a parse error other than a clean EOF, it stops parsing and falls back to a
 // raw io.Copy for the remainder of the stream so the connection is never
-// broken by a framing edge case Mimlec doesn't understand (e.g. an
+// broken by a framing edge case Kanca doesn't understand (e.g. an
 // extension it doesn't decode).
 func pipeAndCapture(direction string, src io.Reader, dst io.Writer, onFrame func(WSFrame)) {
 	for {

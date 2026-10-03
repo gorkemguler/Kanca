@@ -15,10 +15,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
-const creatorName = "Mimlec"
+const creatorName = "Kanca"
 
 // Marshal renders flows as an indented HAR 1.2 document.
 func Marshal(flows []*proxy.Flow, version string) ([]byte, error) {
@@ -191,7 +191,7 @@ func encodeBody(b []byte) (text, encoding string) {
 }
 
 // Unmarshal parses a HAR 1.2 document (from any tool: browser dev-tools, other
-// proxies, or Mimlec itself) into flows suitable for the history view. Entries
+// proxies, or Kanca itself) into flows suitable for the history view. Entries
 // are assigned sequential ids starting at 1, so callers should treat the
 // result as a fresh capture set (import replaces rather than merges).
 func Unmarshal(data []byte) ([]*proxy.Flow, error) {

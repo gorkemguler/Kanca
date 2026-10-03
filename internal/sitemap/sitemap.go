@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 // Node is one entry in the tree. A node with a Method is an observed endpoint

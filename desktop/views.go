@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gorkemguler/mimlec/internal/history"
-	"github.com/gorkemguler/mimlec/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/history"
+	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
 // FlowView is a JSON-friendly projection of a proxy.Flow that exposes the raw
