@@ -58,7 +58,6 @@ export interface RepeaterTab {
   scheme: string;
   host: string;
   raw: string;
-  history: FlowView[] | null;
 }
 
 export type AttackType =

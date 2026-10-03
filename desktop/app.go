@@ -484,19 +484,32 @@ func (a *App) ForwardAll() {
 
 // ---- Repeater --------------------------------------------------------------
 
+// RepeaterTabView is a repeater tab as the frontend sees it. Raw must be a
+// string: encoding/json would serialise repeater.Tab's []byte as base64.
+type RepeaterTabView struct {
+	ID     int64  `json:"id"`
+	Name   string `json:"name"`
+	Scheme string `json:"scheme"`
+	Host   string `json:"host"`
+	Raw    string `json:"raw"`
+}
+
+func toRepeaterTabView(t *repeater.Tab) *RepeaterTabView {
+	return &RepeaterTabView{ID: t.ID, Name: t.Name, Scheme: t.Scheme, Host: t.Host, Raw: string(t.Raw)}
+}
+
 // RepeaterFromFlow opens a new repeater tab seeded from a captured flow.
-func (a *App) RepeaterFromFlow(id int64) (*repeater.Tab, error) {
+func (a *App) RepeaterFromFlow(id int64) (*RepeaterTabView, error) {
 	f, ok := a.store.Get(id)
 	if !ok {
 		return nil, fmt.Errorf("flow %d not found", id)
 	}
-	// Expose the raw request as a string-friendly tab.
-	return a.rep.NewTab("", f.Scheme, f.Host, f.Request.Raw), nil
+	return toRepeaterTabView(a.rep.NewTab("", f.Scheme, f.Host, f.Request.Raw)), nil
 }
 
 // RepeaterNewTab creates an empty tab with a starter request line.
-func (a *App) RepeaterNewTab(scheme, host, raw string) *repeater.Tab {
-	return a.rep.NewTab("", scheme, host, []byte(raw))
+func (a *App) RepeaterNewTab(scheme, host, raw string) *RepeaterTabView {
+	return toRepeaterTabView(a.rep.NewTab("", scheme, host, []byte(raw)))
 }
 
 // RepeaterUpdate stores edits to a tab.
