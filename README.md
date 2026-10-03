@@ -33,7 +33,7 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
     <td width="50%"><img src="assets/screenshots/intruder.png" alt="Intruder"><br><sub><b>Intruder</b> — enumerating user IDs 1–30; grep-match flags the two admin accounts.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="assets/screenshots/findings.png" alt="Findings"><br><sub><b>Findings</b> — passive header/cookie checks plus active-scan leads.</sub></td>
+    <td width="50%"><img src="assets/screenshots/findings.png" alt="Findings"><br><sub><b>Findings</b> — passive header/cookie checks plus active-scan leads (XSS, SQLi, path traversal, SSTI, open redirect, CRLF).</sub></td>
     <td width="50%"><img src="assets/screenshots/sitemap.png" alt="Site map"><br><sub><b>Site map</b> — captured endpoints as a per-host tree.</sub></td>
   </tr>
 </table>
@@ -55,7 +55,7 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
 | **Match & replace** | Regex substitutions applied on the wire — rewrite the request line, a header, or the body of outbound requests and inbound responses (Content-Length is kept correct). |
 | **Body search** | Filter the history across request/response bodies, not just method/host/path. |
 | **Passive scanner** | Flags security issues from observed traffic (missing CSP/HSTS/X-Content-Type-Options, insecure cookies, permissive CORS, version disclosure) without sending any extra requests. |
-| **Active scanner** | On demand, sends a small, bounded set of **non-destructive** probes for one request — input reflection and error-based injection indicators — restricted to in-scope hosts. Detection-only: it flags leads to verify by hand, never attempts exploitation. |
+| **Active scanner** | On demand, probes one request's insertion points — query, form-body and JSON-body parameters — for reflected input/XSS, error-based SQL injection, path traversal, open redirect, template injection (SSTI) and CRLF/header injection, restricted to in-scope hosts. An opt-in **aggressive** mode adds boolean- and time-based SQLi and time-based command-injection checks (these make the target do observable work). Detection-only: every check compares against a baseline and flags a lead to verify by hand — it never attempts exploitation. |
 | **Save / import / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2 and import HAR captures from other tools. |
 | **WebSocket support** | `ws://` and `wss://` upgrades are bridged transparently (they used to break, since `Upgrade`/`Connection` are stripped as hop-by-hop for ordinary HTTP) with a live, per-connection frame log — hand-rolled RFC 6455 framing, no dependency. |
 
