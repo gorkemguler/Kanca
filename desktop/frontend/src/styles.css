@@ -53,10 +53,16 @@ body {
   flex-shrink: 0;
 }
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-weight: 700;
   letter-spacing: 0.5px;
   color: var(--accent);
   margin-right: 8px;
+}
+.brand-mark {
+  flex-shrink: 0;
 }
 .brand span {
   color: var(--text-dim);

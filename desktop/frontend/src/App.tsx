@@ -94,6 +94,34 @@ export default function App() {
     <div className="app">
       <div className="topbar">
         <div className="brand">
+          <svg
+            className="brand-mark"
+            viewBox="0 0 256 256"
+            width="22"
+            height="22"
+            aria-hidden="true"
+          >
+            <g
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={22}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="150" cy="58" r="18" />
+              <path d="M150 76 L150 150 C150 182 150 198 126 198 C100 198 86 178 86 154 C86 138 95 128 108 124" />
+              <path d="M108 124 L96 140" />
+            </g>
+            <rect
+              x="120"
+              y="150"
+              width="22"
+              height="22"
+              rx="5"
+              transform="rotate(45 131 161)"
+              fill="var(--accent-2)"
+            />
+          </svg>
           KANCA <span>intercepting proxy</span>
         </div>
         <span className={"status-dot" + (status.running ? " on" : "")} />

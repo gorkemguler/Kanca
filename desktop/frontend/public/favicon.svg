@@ -1,0 +1,8 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Kanca">
+  <g fill="none" stroke="#e8792b" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="150" cy="58" r="18"/>
+    <path d="M150 76 L150 150 C150 182 150 198 126 198 C100 198 86 178 86 154 C86 138 95 128 108 124"/>
+    <path d="M108 124 L96 140"/>
+  </g>
+  <rect x="120" y="150" width="22" height="22" rx="5" transform="rotate(45 131 161)" fill="#4a9eff"/>
+</svg>
