@@ -40,6 +40,19 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
 
 <sub>Screenshots show Kanca against a deliberately weak demo shop running locally.</sub>
 
+## Download
+
+Pre-built binaries for macOS, Windows and Linux are attached to every
+[release](https://github.com/gorkemguler/Kanca/releases).
+
+| Platform | File | Run |
+| --- | --- | --- |
+| macOS (universal) | `kanca-macos-universal.zip` | Unzip, then right-click `kanca.app` → **Open** on first launch (it isn't notarised, so Gatekeeper asks once). |
+| Windows (x64) | `kanca-windows-amd64.zip` | Unzip and run `kanca.exe`. |
+| Linux (x64) | `kanca-linux-amd64.tar.gz` | Extract and run `./kanca` (needs `libgtk-3` and `libwebkit2gtk-4.0`). |
+
+Prefer to build it yourself? See [Desktop app](#desktop-app) below.
+
 ## Features (MVP)
 
 | Feature | What it does |

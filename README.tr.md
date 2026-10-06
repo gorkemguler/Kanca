@@ -43,6 +43,19 @@ fuzzlamanıza olanak tanır.
 
 <sub>Ekran görüntüleri, yerelde çalışan ve bilerek zayıf bırakılmış bir demo mağazaya karşı alınmıştır.</sub>
 
+## İndirme
+
+macOS, Windows ve Linux için derlenmiş sürümler her
+[release](https://github.com/gorkemguler/Kanca/releases) içinde hazır.
+
+| Platform | Dosya | Çalıştırma |
+| --- | --- | --- |
+| macOS (universal) | `kanca-macos-universal.zip` | Açın, ilk açılışta `kanca.app`'e sağ tık → **Aç** (notarize edilmediği için Gatekeeper bir kez sorar). |
+| Windows (x64) | `kanca-windows-amd64.zip` | Açın ve `kanca.exe`'yi çalıştırın. |
+| Linux (x64) | `kanca-linux-amd64.tar.gz` | Çıkartın ve `./kanca`'yı çalıştırın (`libgtk-3` ve `libwebkit2gtk-4.0` gerekir). |
+
+Kendiniz derlemek isterseniz aşağıdaki [Masaüstü uygulaması](#masaüstü-uygulaması) bölümüne bakın.
+
 ## Özellikler (MVP)
 
 | Özellik | Ne yapar |
