@@ -271,6 +271,9 @@ func (p *Proxy) handle(w http.ResponseWriter, r *http.Request) {
 
 // handleHTTP proxies a plain (non-tunnelled) HTTP request.
 func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
+	if p.serveBuiltinIfTargeted(w, r) {
+		return
+	}
 	if r.URL.Scheme == "" {
 		r.URL.Scheme = "http"
 	}
