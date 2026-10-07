@@ -50,8 +50,40 @@ Pre-built binaries for macOS, Windows and Linux are attached to every
 | macOS (universal) | `kanca-macos-universal.zip` | Unzip, then right-click `kanca.app` → **Open** on first launch (it isn't notarised, so Gatekeeper asks once). |
 | Windows (x64) | `kanca-windows-amd64.zip` | Unzip and run `kanca.exe`. |
 | Linux (x64) | `kanca-linux-amd64.tar.gz` | Extract and run `./kanca` (needs `libgtk-3` and `libwebkit2gtk-4.0`). |
+| Browser extension | `kanca-browser-extension.zip` | See [Browser extension](#browser-extension) below. |
 
 Prefer to build it yourself? See [Desktop app](#desktop-app) below.
+
+## Browser extension
+
+<img src="assets/screenshots/extension.png" alt="Kanca browser extension popup" width="300" align="right">
+
+The companion extension for Chrome, Edge, Brave and Opera turns Kanca on and off
+for your browser in one click, so you never have to dig through proxy settings:
+
+- **One-click routing** — sends the browser's HTTP and HTTPS traffic to Kanca
+  (`127.0.0.1:8080` by default, or any host/port you set). The toolbar icon turns
+  orange with an **ON** badge while it's active; <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> toggles it.
+- **Live status** — tells you whether traffic is really flowing through Kanca,
+  or that Kanca isn't running yet.
+- **CA certificate** — *Install CA certificate…* opens `http://kanca/`, a page
+  Kanca serves itself, to download the root certificate with per-OS steps.
+- **Local targets** — optionally capture `localhost`, `127.0.0.1` and `*.localhost`,
+  which browsers otherwise send around the proxy.
+- **Bypass list** — hosts that should skip Kanca, e.g. `*.google.com` noise.
+- **Conflict warning** — flags when another extension (a VPN or proxy switcher)
+  or a policy controls the proxy instead.
+
+**Install:** download `kanca-browser-extension.zip` from the
+[latest release](https://github.com/gorkemguler/Kanca/releases/latest) and unzip
+it, open `chrome://extensions` (`edge://extensions` in Edge), turn on
+**Developer mode**, click **Load unpacked** and select the unzipped folder. From a
+clone you can load the [`extension/`](extension) folder directly. Firefox is not
+supported yet.
+
+<br clear="right">
+
+## Features (MVP)
 
 ## Features (MVP)
 
@@ -71,6 +103,7 @@ Prefer to build it yourself? See [Desktop app](#desktop-app) below.
 | **Active scanner** | On demand, probes one request's insertion points — query, form-body and JSON-body parameters — for reflected input/XSS, error-based SQL injection, path traversal, open redirect, template injection (SSTI) and CRLF/header injection, restricted to in-scope hosts. An opt-in **aggressive** mode adds boolean- and time-based SQLi and time-based command-injection checks (these make the target do observable work). Detection-only: every check compares against a baseline and flags a lead to verify by hand — it never attempts exploitation. |
 | **Save / import / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2 and import HAR captures from other tools. |
 | **WebSocket support** | `ws://` and `wss://` upgrades are bridged transparently (they used to break, since `Upgrade`/`Connection` are stripped as hop-by-hop for ordinary HTTP) with a live, per-connection frame log — hand-rolled RFC 6455 framing, no dependency. |
+| **Browser companion** | A one-click [browser extension](#browser-extension) routes the browser through Kanca, and `http://kanca/` — served by the proxy itself, never forwarded or recorded — offers the root CA for download. |
 
 ## Architecture
 
@@ -112,8 +145,10 @@ just verifying things work.
 go run ./cmd/kanca -addr 127.0.0.1:8080
 ```
 
-Then point your browser's HTTP/HTTPS proxy at `127.0.0.1:8080`. To intercept
-HTTPS, export the root CA and import it into your browser/OS trust store:
+Then point your browser's HTTP/HTTPS proxy at `127.0.0.1:8080` (or switch on the
+[browser extension](#browser-extension)). To intercept HTTPS, browse to
+`http://kanca/` through the proxy and download the root certificate, or export it
+from the CLI, then import it into your browser/OS trust store:
 
 ```bash
 go run ./cmd/kanca -export-ca kanca-ca.pem
@@ -157,6 +192,9 @@ go test ./...
 
 # frontend type-check + build
 cd desktop/frontend && npm install && npm run build
+
+# browser extension unit tests (no dependencies)
+cd extension && npm test
 ```
 
 The proxy engine is covered by end-to-end tests that stand up real HTTP and

@@ -53,8 +53,40 @@ macOS, Windows ve Linux için derlenmiş sürümler her
 | macOS (universal) | `kanca-macos-universal.zip` | Açın, ilk açılışta `kanca.app`'e sağ tık → **Aç** (notarize edilmediği için Gatekeeper bir kez sorar). |
 | Windows (x64) | `kanca-windows-amd64.zip` | Açın ve `kanca.exe`'yi çalıştırın. |
 | Linux (x64) | `kanca-linux-amd64.tar.gz` | Çıkartın ve `./kanca`'yı çalıştırın (`libgtk-3` ve `libwebkit2gtk-4.0` gerekir). |
+| Tarayıcı eklentisi | `kanca-browser-extension.zip` | Aşağıdaki [Tarayıcı eklentisi](#tarayıcı-eklentisi) bölümüne bakın. |
 
 Kendiniz derlemek isterseniz aşağıdaki [Masaüstü uygulaması](#masaüstü-uygulaması) bölümüne bakın.
+
+## Tarayıcı eklentisi
+
+<img src="assets/screenshots/extension.png" alt="Kanca tarayıcı eklentisi" width="300" align="right">
+
+Chrome, Edge, Brave ve Opera için yardımcı eklenti, Kanca'yı tarayıcınız için tek
+tıkla açıp kapatır; proxy ayarlarıyla uğraşmanız gerekmez:
+
+- **Tek tıkla yönlendirme** — tarayıcının HTTP ve HTTPS trafiğini Kanca'ya gönderir
+  (varsayılan `127.0.0.1:8080`, ya da sizin belirlediğiniz host/port). Aktifken
+  toolbar ikonu turuncu olur ve **ON** rozeti çıkar; <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> ile açılıp kapanır.
+- **Canlı durum** — trafiğin gerçekten Kanca'dan geçip geçmediğini ya da Kanca'nın
+  henüz çalışmadığını gösterir.
+- **CA sertifikası** — *Install CA certificate…* butonu, Kanca'nın kendisinin sunduğu
+  `http://kanca/` sayfasını açar; root sertifikayı işletim sistemine göre kurulum
+  adımlarıyla birlikte indirirsiniz.
+- **Yerel hedefler** — tarayıcıların normalde proxy'yi atlattığı `localhost`,
+  `127.0.0.1` ve `*.localhost` adreslerini de isteğe bağlı olarak yakalar.
+- **Bypass listesi** — Kanca'yı atlaması gereken host'lar, ör. `*.google.com` gürültüsü.
+- **Çakışma uyarısı** — proxy'yi başka bir eklenti (VPN ya da proxy değiştirici)
+  veya bir politika kontrol ediyorsa uyarır.
+
+**Kurulum:** [son sürümden](https://github.com/gorkemguler/Kanca/releases/latest)
+`kanca-browser-extension.zip` dosyasını indirip açın, `chrome://extensions`
+(Edge'de `edge://extensions`) sayfasını açın, **Geliştirici modu**nu açın,
+**Paketlenmemiş öğe yükle**'ye tıklayıp açtığınız klasörü seçin. Repoyu
+klonladıysanız doğrudan [`extension/`](extension) klasörünü yükleyebilirsiniz.
+Firefox henüz desteklenmiyor.
+
+<br clear="right">
+
 
 ## Özellikler (MVP)
 
@@ -74,6 +106,7 @@ Kendiniz derlemek isterseniz aşağıdaki [Masaüstü uygulaması](#masaüstü-u
 | **Aktif tarayıcı** | Talep üzerine, tek bir isteğin insertion point'lerini — query, form gövdesi ve JSON gövdesi parametreleri — yansıyan girdi/XSS, hataya dayalı SQL enjeksiyonu, path traversal, open redirect, template enjeksiyonu (SSTI) ve CRLF/header enjeksiyonu için dener; yalnızca kapsam içindeki host'larla sınırlı. Opt-in bir **agresif** mod, boolean ve time-based SQLi ile time-based komut enjeksiyonu kontrollerini ekler (bunlar hedefi gözlemlenebilir şekilde çalıştırır). Sadece tespit amaçlıdır: her kontrol bir baseline ile karşılaştırma yapar ve elle doğrulanacak bir ipucu işaretler — asla istismar (exploitation) girişiminde bulunmaz. |
 | **Kaydet / içe-dışa aktar** | Tam bir oturumu (flow'lar, kurallar, bulgular, kapsam) bir proje dosyasına kaydedip sonra tekrar açın; yakalanan trafiği HAR 1.2 olarak dışa aktarın ve başka araçlardan HAR yakalamalarını içe aktarın. |
 | **WebSocket desteği** | `ws://` ve `wss://` upgrade'leri şeffaf biçimde köprülenir (normal HTTP için hop-by-hop olarak `Upgrade`/`Connection` header'ları temizlendiğinden eskiden bu bağlantılar bozulurdu) — canlı, bağlantı başına frame kaydıyla birlikte; sıfırdan yazılmış RFC 6455 framing, harici bağımlılık yok. |
+| **Tarayıcı yardımcısı** | Tek tıklık bir [tarayıcı eklentisi](#tarayıcı-eklentisi) tarayıcıyı Kanca'ya yönlendirir; proxy'nin kendisinin sunduğu (asla dışarı iletilmeyen ya da kaydedilmeyen) `http://kanca/` sayfası root CA'yı indirmenizi sağlar. |
 
 ## Mimari
 
@@ -117,8 +150,10 @@ go run ./cmd/kanca -addr 127.0.0.1:8080
 ```
 
 Ardından tarayıcınızın HTTP/HTTPS proxy ayarını `127.0.0.1:8080` olarak
-belirleyin. HTTPS'i de yakalamak için root CA'yı dışa aktarıp
-tarayıcınızın/işletim sisteminizin güven deposuna ekleyin:
+belirleyin (ya da [tarayıcı eklentisini](#tarayıcı-eklentisi) açın). HTTPS'i de
+yakalamak için proxy üzerinden `http://kanca/` adresine gidip root sertifikayı
+indirin veya CLI ile dışa aktarın, sonra tarayıcınızın/işletim sisteminizin güven
+deposuna ekleyin:
 
 ```bash
 go run ./cmd/kanca -export-ca kanca-ca.pem
@@ -163,6 +198,9 @@ go test ./...
 
 # frontend tip kontrolü + build
 cd desktop/frontend && npm install && npm run build
+
+# tarayıcı eklentisi birim testleri (bağımlılık yok)
+cd extension && npm test
 ```
 
 Proxy motoru, gerçek HTTP ve HTTPS backend'ler ayağa kaldırıp trafiği

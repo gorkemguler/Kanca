@@ -38,6 +38,19 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  extension:
+    name: Browser extension (unit tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm test
+
   desktop:
     name: Desktop module (build)
     # Pinned to 22.04 for libwebkit2gtk-4.0, which Wails v2 links by default.

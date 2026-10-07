@@ -81,10 +81,23 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+
+      - name: Package browser extension
+        run: |
+          # Chrome extension versions are 1-4 dot-separated integers; stamp the
+          # tag's version in when it fits (e.g. v0.2.0 -> 0.2.0).
+          version="${GITHUB_REF_NAME#v}"
+          if [[ "$version" =~ ^[0-9]+(\.[0-9]+){0,3}$ ]]; then
+            jq --arg v "$version" '.version = $v' extension/manifest.json > manifest.tmp
+            mv manifest.tmp extension/manifest.json
+          fi
+          (cd extension && zip -r ../dist/kanca-browser-extension.zip . -x 'test/*' 'package.json')
 
       - name: Publish binaries to the release
         uses: softprops/action-gh-release@v2
@@ -100,5 +113,6 @@ jobs:
             - **macOS** (`kanca-macos-universal.zip`) — unzip, then right-click `kanca.app` → **Open** on first launch (unsigned, so Gatekeeper asks once).
             - **Windows** (`kanca-windows-amd64.zip`) — unzip and run `kanca.exe`.
             - **Linux** (`kanca-linux-amd64.tar.gz`) — extract and run `./kanca` (needs `libgtk-3` and `libwebkit2gtk-4.0`).
+            - **Browser extension** (`kanca-browser-extension.zip`, Chrome / Edge / Brave / Opera) — unzip, open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick the unzipped folder.
 
-            To intercept HTTPS, open **CA / Settings** in the app, import the root certificate into your browser/OS trust store, set the browser's proxy to `127.0.0.1:8080`, and press **Start proxy**. Authorised testing only.
+            Start Kanca and press **Start proxy**, then switch the extension on (or set your browser's proxy to `127.0.0.1:8080`). To intercept HTTPS, open `http://kanca/` through the proxy — or click **Install CA certificate** in the extension — and trust the downloaded certificate. Authorised testing only.
