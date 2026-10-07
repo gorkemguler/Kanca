@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Kanca",
+  "version": "0.1.0",
+  "description": "Route your browser through the Kanca intercepting proxy with one click, and install its CA certificate.",
+  "minimum_chrome_version": "102",
+  "icons": {
+    "16": "icons/on-16.png",
+    "32": "icons/on-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Kanca: off",
+    "default_icon": {
+      "16": "icons/off-16.png",
+      "32": "icons/off-32.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["proxy", "storage"],
+  "host_permissions": [
+    "http://kanca/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "commands": {
+    "toggle-proxy": {
+      "suggested_key": { "default": "Alt+Shift+K" },
+      "description": "Toggle routing this browser through Kanca"
+    }
+  }
+}

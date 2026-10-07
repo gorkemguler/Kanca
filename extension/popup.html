@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Kanca</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <svg viewBox="0 0 256 256" width="26" height="26" aria-hidden="true">
+        <g fill="none" stroke="#e8792b" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="150" cy="58" r="18" />
+          <path d="M150 76 L150 150 C150 182 150 198 126 198 C100 198 86 178 86 154 C86 138 95 128 108 124" />
+          <path d="M108 124 L96 140" />
+        </g>
+        <rect x="120" y="150" width="22" height="22" rx="5" transform="rotate(45 131 161)" fill="#4a9eff" />
+      </svg>
+      <div>
+        <h1>KANCA</h1>
+        <p class="sub">intercepting proxy</p>
+      </div>
+    </header>
+
+    <label class="toggle">
+      <input type="checkbox" id="enabled" />
+      <span class="track"><span class="thumb"></span></span>
+      <span class="toggle-label">Route this browser through Kanca</span>
+    </label>
+
+    <p id="status" class="status off"><span class="dot"></span><span id="status-text">Checking…</span></p>
+    <p id="conflict" class="warn" hidden></p>
+
+    <button id="open-cert" class="secondary" type="button">Install CA certificate…</button>
+
+    <details id="settings">
+      <summary>Proxy settings</summary>
+      <div class="row">
+        <label class="field grow">Host<input id="host" spellcheck="false" autocomplete="off" /></label>
+        <label class="field port">Port<input id="port" type="number" min="1" max="65535" /></label>
+      </div>
+      <label class="check">
+        <input type="checkbox" id="includeLocalhost" />
+        Also capture localhost, 127.0.0.1 and *.localhost
+      </label>
+      <label class="field">
+        Bypass Kanca for (one per line)
+        <textarea id="bypass" rows="3" spellcheck="false" placeholder="*.google.com&#10;updates.example.com"></textarea>
+      </label>
+      <p id="error" class="error" hidden></p>
+    </details>
+
+    <footer>
+      <span id="shortcut"></span>
+      <span>Authorised testing only</span>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
