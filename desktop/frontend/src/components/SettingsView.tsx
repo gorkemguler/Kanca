@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { api, TrustStatus } from "../lib/api";
 
 export default function SettingsView() {
   const [ca, setCa] = useState("");
@@ -30,7 +30,36 @@ export default function SettingsView() {
     }
   };
 
+  const [trust, setTrust] = useState<TrustStatus | null>(null);
+  const [trustBusy, setTrustBusy] = useState(false);
+  const [caMsg, setCaMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const changeTrust = async (install: boolean) => {
+    setCaMsg(null);
+    setTrustBusy(true);
+    try {
+      setTrust(install ? await api.installCA() : await api.removeCA());
+      setCaMsg({ ok: true, text: install ? "Installed and trusted." : "Removed from this Mac." });
+    } catch (e: any) {
+      setCaMsg({ ok: false, text: String(e?.message ?? e) });
+      api.getTrustStatus().then(setTrust).catch(() => {});
+    } finally {
+      setTrustBusy(false);
+    }
+  };
+
+  const exportCA = async () => {
+    setCaMsg(null);
+    try {
+      const path = await api.exportRootCA();
+      if (path) setCaMsg({ ok: true, text: `Saved to ${path}` });
+    } catch (e: any) {
+      setCaMsg({ ok: false, text: String(e?.message ?? e) });
+    }
+  };
+
   useEffect(() => {
+    api.getTrustStatus().then(setTrust).catch(() => setTrust(null));
     api.getRootCA().then(setCa).catch(() => setCa(""));
     api
       .getScope()
@@ -116,21 +145,40 @@ export default function SettingsView() {
 
       <h3 style={{ marginTop: 24 }}>Root certificate authority</h3>
       <div className="callout">
-        To intercept HTTPS, import this certificate into your browser or OS
-        trust store, then set your browser's proxy to the address shown in the
-        title bar. The private key stays on this machine in{" "}
-        <span className="mono">~/.kanca</span>. Remove the certificate from your
-        trust store when you are done testing.
+        Your own browser needs to trust this certificate to intercept HTTPS (the
+        Kanca browser above doesn't). The private key stays on this machine in{" "}
+        <span className="mono">~/.kanca</span>. Remove the certificate when you
+        are done testing. Firefox keeps its own list: <i>Settings → Privacy &amp;
+        Security → View Certificates → Authorities → Import</i>.
       </div>
+      {trust && (
+        <p className={`trust-status ${trust.trusted ? "ok-text" : ""}`}>
+          <span className={`status-dot${trust.trusted ? " on" : ""}`} />
+          {trust.trusted
+            ? "This computer trusts Kanca's certificates: HTTPS works in Safari, Chrome and Edge."
+            : "Not trusted by this computer yet, so HTTPS sites show certificate errors in your own browser."}
+        </p>
+      )}
       <div className="row">
+        {trust?.supported &&
+          (trust.trusted ? (
+            <button disabled={trustBusy} onClick={() => changeTrust(false)}>
+              {trustBusy ? "Waiting for macOS…" : "Remove from this Mac"}
+            </button>
+          ) : (
+            <button className="primary" disabled={trustBusy} onClick={() => changeTrust(true)}>
+              {trustBusy ? "Waiting for macOS…" : "Install on this Mac"}
+            </button>
+          ))}
+        <button onClick={exportCA}>Export to file…</button>
         <button onClick={copy}>{copied ? "Copied!" : "Copy PEM"}</button>
-        <button
-          onClick={() => api.exportRootCA("kanca-ca.pem")}
-          title="Writes kanca-ca.pem next to the app's working directory"
-        >
-          Export to file
-        </button>
       </div>
+      {trust?.supported && !trust.trusted && (
+        <p className="dim">
+          macOS will ask for your password or Touch ID to trust the certificate.
+        </p>
+      )}
+      {caMsg && <p className={caMsg.ok ? "ok-text" : "err-text"}>{caMsg.text}</p>}
       <textarea
         className="payloads mono"
         style={{ minHeight: 220 }}

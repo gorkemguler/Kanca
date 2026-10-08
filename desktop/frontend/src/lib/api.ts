@@ -9,6 +9,11 @@ export interface ProxyStatus {
   addr: string;
 }
 
+export interface TrustStatus {
+  supported: boolean;
+  trusted: boolean;
+}
+
 export interface Entry {
   id: number;
   method: string;
@@ -196,7 +201,10 @@ interface WailsBackend {
   StartProxy(addr: string): Promise<ProxyStatus>;
   StopProxy(): Promise<void>;
   GetRootCAPEM(): Promise<string>;
-  ExportRootCA(path: string): Promise<void>;
+  ExportRootCA(): Promise<string>;
+  GetTrustStatus(): Promise<TrustStatus>;
+  InstallCA(): Promise<TrustStatus>;
+  RemoveCA(): Promise<TrustStatus>;
   OpenBrowser(): Promise<string>;
   ExportExtension(): Promise<string>;
   GetScope(): Promise<ScopeConfig>;
@@ -263,7 +271,10 @@ export const api = {
   startProxy: (addr: string) => backend().StartProxy(addr),
   stopProxy: () => backend().StopProxy(),
   getRootCA: () => backend().GetRootCAPEM(),
-  exportRootCA: (path: string) => backend().ExportRootCA(path),
+  exportRootCA: () => backend().ExportRootCA(),
+  getTrustStatus: () => backend().GetTrustStatus(),
+  installCA: () => backend().InstallCA(),
+  removeCA: () => backend().RemoveCA(),
   openBrowser: () => backend().OpenBrowser(),
   exportExtension: () => backend().ExportExtension(),
   getScope: () => backend().GetScope(),

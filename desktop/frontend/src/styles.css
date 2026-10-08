@@ -403,6 +403,12 @@ textarea.payloads {
 .ok-text {
   color: var(--ok);
 }
+.trust-status {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+}
 .err-text {
   color: var(--err);
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/gorkemguler/kanca/internal/rules"
 	"github.com/gorkemguler/kanca/internal/scanner"
 	"github.com/gorkemguler/kanca/internal/sitemap"
+	"github.com/gorkemguler/kanca/internal/trust"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -152,9 +153,51 @@ func (a *App) StopProxy() error {
 // GetRootCAPEM returns the PEM-encoded root certificate for the user to import.
 func (a *App) GetRootCAPEM() string { return string(a.ca.RootCertPEM()) }
 
-// ExportRootCA writes the root certificate to path.
-func (a *App) ExportRootCA(path string) error {
-	return os.WriteFile(path, a.ca.RootCertPEM(), 0o644)
+// ExportRootCA asks where to save the root certificate and writes it there,
+// returning the chosen path ("" when the dialog is cancelled). A dialog is
+// needed because an app launched from Finder runs with "/" as its working
+// directory, where a relative path can't be written.
+func (a *App) ExportRootCA() (string, error) {
+	path, err := wruntime.SaveFileDialog(a.ctx, wruntime.SaveDialogOptions{
+		Title:           "Save Kanca root certificate",
+		DefaultFilename: "kanca-ca.crt",
+		Filters:         []wruntime.FileFilter{{DisplayName: "Certificate (*.crt)", Pattern: "*.crt;*.pem"}},
+	})
+	if err != nil || path == "" {
+		return "", err
+	}
+	return path, os.WriteFile(path, a.ca.RootCertPEM(), 0o644)
+}
+
+// TrustStatus says whether this computer trusts the certificates Kanca issues,
+// and whether one-click install is available here.
+type TrustStatus struct {
+	Supported bool `json:"supported"`
+	Trusted   bool `json:"trusted"`
+}
+
+// GetTrustStatus checks trust with the operating system's own verifier.
+func (a *App) GetTrustStatus() TrustStatus {
+	return TrustStatus{Supported: trust.Supported(), Trusted: trust.Trusted(a.ca)}
+}
+
+// InstallCA adds the root certificate to the login keychain as trusted. macOS
+// shows its own authorisation prompt.
+func (a *App) InstallCA() (TrustStatus, error) {
+	if err := trust.Install(a.ca); err != nil {
+		return a.GetTrustStatus(), err
+	}
+	st := a.GetTrustStatus()
+	if !st.Trusted {
+		return st, fmt.Errorf("the certificate was added, but the system still doesn't trust it; open Keychain Access, find \"Kanca Root CA\" and set it to Always Trust")
+	}
+	return st, nil
+}
+
+// RemoveCA removes the trust setting and the root certificate from the keychain.
+func (a *App) RemoveCA() (TrustStatus, error) {
+	err := trust.Remove(a.ca)
+	return a.GetTrustStatus(), err
 }
 
 // ---- Scope -----------------------------------------------------------------
