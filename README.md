@@ -101,6 +101,18 @@ it.) Then open `chrome://extensions` (`edge://extensions` in Edge), turn on
 **Developer mode**, click **Load unpacked** and select the folder. Firefox is not
 supported yet.
 
+**Trust the certificate (for HTTPS in your own browser):** on macOS, click
+**CA / Settings → Install on this Mac**; macOS asks for your password and the
+status turns green once Safari, Chrome and Edge trust it. **Remove from this Mac**
+undoes it. Without the app, run:
+
+```bash
+security add-trusted-cert -r trustRoot -p ssl -k ~/Library/Keychains/login.keychain-db ~/Downloads/kanca-ca.crt
+```
+
+On other systems, open `http://kanca/` through the proxy for step-by-step
+instructions. Firefox uses its own certificate list on every platform.
+
 <br clear="right">
 
 ## Features (MVP)

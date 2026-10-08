@@ -106,6 +106,18 @@ yazılır ve klasör açılır. (Ya da [son sürümden](https://github.com/gorke
 (Edge'de `edge://extensions`) sayfasını açın, **Geliştirici modu**nu açın,
 **Paketlenmemiş öğe yükle**'ye tıklayıp klasörü seçin. Firefox henüz desteklenmiyor.
 
+**Sertifikaya güvenin (kendi tarayıcınızda HTTPS için):** macOS'ta
+**CA / Settings → Install on this Mac**'e tıklayın; macOS şifrenizi ister ve
+Safari, Chrome ve Edge sertifikaya güvendiğinde durum yeşile döner.
+**Remove from this Mac** geri alır. Uygulama olmadan şu komutu çalıştırın:
+
+```bash
+security add-trusted-cert -r trustRoot -p ssl -k ~/Library/Keychains/login.keychain-db ~/Downloads/kanca-ca.crt
+```
+
+Diğer sistemlerde adım adım talimatlar için proxy üzerinden `http://kanca/`
+adresini açın. Firefox her platformda kendi sertifika listesini kullanır.
+
 <br clear="right">
 
 

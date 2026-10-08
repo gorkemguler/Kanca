@@ -100,7 +100,7 @@ ul{padding-left:20px;margin:0}li{margin:4px 0}
 <h2>Intercept HTTPS: trust the Kanca root certificate</h2>
 <a class="btn" href="/cert">Download CA certificate</a>
 <ul>
-<li><b>macOS</b> &mdash; open <code>kanca-ca.crt</code>, add it to the login keychain, then open &ldquo;Kanca Root CA&rdquo; in Keychain Access and set <i>Trust &rarr; When using this certificate</i> to <i>Always Trust</i>.</li>
+<li><b>macOS</b> &mdash; easiest: in the Kanca app, <i>CA / Settings &rarr; Install on this Mac</i>. Or in Terminal: <code>security add-trusted-cert -r trustRoot -p ssl -k ~/Library/Keychains/login.keychain-db ~/Downloads/kanca-ca.crt</code>. Either way macOS asks for your password. (By hand: add <code>kanca-ca.crt</code> to the login keychain, open &ldquo;Kanca Root CA&rdquo; in Keychain Access and set <i>Trust &rarr; When using this certificate</i> to <i>Always Trust</i>.)</li>
 <li><b>Windows</b> &mdash; open <code>kanca-ca.crt</code> &rarr; <i>Install Certificate</i> &rarr; <i>Current User</i> &rarr; place it in <i>Trusted Root Certification Authorities</i>.</li>
 <li><b>Firefox</b> &mdash; <i>Settings &rarr; Privacy &amp; Security &rarr; Certificates &rarr; View Certificates &rarr; Authorities &rarr; Import</i>, and tick &ldquo;Trust this CA to identify websites&rdquo;.</li>
 <li><b>Chrome / Edge on Linux</b> &mdash; <i>Settings &rarr; Privacy and security &rarr; Security &rarr; Manage certificates &rarr; Authorities &rarr; Import</i>.</li>
