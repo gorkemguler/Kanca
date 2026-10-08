@@ -115,4 +115,8 @@ jobs:
             - **Linux** (`kanca-linux-amd64.tar.gz`) — extract and run `./kanca` (needs `libgtk-3` and `libwebkit2gtk-4.0`).
             - **Browser extension** (`kanca-browser-extension.zip`, Chrome / Edge / Brave / Opera) — unzip, open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick the unzipped folder.
 
-            Start Kanca and press **Start proxy**, then switch the extension on (or set your browser's proxy to `127.0.0.1:8080`). To intercept HTTPS, open `http://kanca/` through the proxy — or click **Install CA certificate** in the extension — and trust the downloaded certificate. Authorised testing only.
+            **Quickest start:** open Kanca and click **Open browser**. It starts the proxy and opens Chrome, Edge or Brave in a separate profile that is already routed through Kanca; HTTPS works without installing anything.
+
+            **Your own browser:** add the extension (in the app: **CA / Settings → Get the extension**, or the zip above) and switch it on. To intercept HTTPS, open `http://kanca/` through the proxy, or click **Install CA certificate** in the extension, and trust the downloaded certificate.
+
+            Authorised testing only.
