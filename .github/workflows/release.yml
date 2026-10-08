@@ -97,7 +97,7 @@ jobs:
             jq --arg v "$version" '.version = $v' extension/manifest.json > manifest.tmp
             mv manifest.tmp extension/manifest.json
           fi
-          (cd extension && zip -r ../dist/kanca-browser-extension.zip . -x 'test/*' 'package.json')
+          (cd extension && zip -r ../dist/kanca-browser-extension.zip . -x 'test/*' 'package.json' '*.go')
 
       - name: Publish binaries to the release
         uses: softprops/action-gh-release@v2

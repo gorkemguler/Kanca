@@ -24,7 +24,7 @@ import (
 )
 
 // appVersion is stamped into exported HAR and project files.
-const appVersion = "0.1.0"
+const appVersion = "0.2.0"
 
 // App is the Wails-bound backend. Every exported method is callable from the
 // TypeScript frontend; live updates are pushed as Wails events.

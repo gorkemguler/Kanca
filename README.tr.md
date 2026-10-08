@@ -55,7 +55,28 @@ macOS, Windows ve Linux için derlenmiş sürümler her
 | Linux (x64) | `kanca-linux-amd64.tar.gz` | Çıkartın ve `./kanca`'yı çalıştırın (`libgtk-3` ve `libwebkit2gtk-4.0` gerekir). |
 | Tarayıcı eklentisi | `kanca-browser-extension.zip` | Aşağıdaki [Tarayıcı eklentisi](#tarayıcı-eklentisi) bölümüne bakın. |
 
-Kendiniz derlemek isterseniz aşağıdaki [Masaüstü uygulaması](#masaüstü-uygulaması) bölümüne bakın.
+Kendiniz derlemek isterseniz aşağıdaki [Desktop uygulaması](#desktop-uygulaması) bölümüne bakın.
+
+## Tek tıkla tarayıcı
+
+Başlamanın en hızlı yolu: Kanca'nın üst barındaki **Open browser** butonuna
+(ya da **CA / Settings → Browser setup** altındakine) tıklayın. Kanca gerekirse
+proxy'yi başlatır ve Chrome, Edge veya Brave'i, trafiği zaten Kanca'dan geçen
+ayrı bir profille açar.
+
+- **HTTPS hemen çalışır.** Tarayıcıya yalnızca Kanca'nın kendi sertifika
+  anahtarlarına güvenmesi söylenir; işletim sisteminin güven deposuna hiçbir şey
+  kurulmaz ve diğer tüm siteler normal sertifika kontrolünden geçmeye devam eder.
+- **Günlük tarayıcınıza dokunulmaz.** Test profili kendi çerezleri ve geçmişiyle
+  `~/.kanca/browser-profile` içinde durur.
+- **Yerel hedefler de yakalanır**, `localhost` ve `*.localhost` dahil.
+
+Kanca, kuruluysa Chrome'u tercih eder. Tarayıcının kendi güncelleme ve senkron
+trafiği kapatılır, ancak Edge yine de Microsoft servislerine birkaç istek
+gönderir; bunları geçmişten uzak tutmak için **Target scope** (CA / Settings)
+ayarlayın.
+
+CLI'da `go run ./cmd/kanca -browser` aynı işi yapar.
 
 ## Tarayıcı eklentisi
 
@@ -78,12 +99,12 @@ tıkla açıp kapatır; proxy ayarlarıyla uğraşmanız gerekmez:
 - **Çakışma uyarısı** — proxy'yi başka bir eklenti (VPN ya da proxy değiştirici)
   veya bir politika kontrol ediyorsa uyarır.
 
-**Kurulum:** [son sürümden](https://github.com/gorkemguler/Kanca/releases/latest)
-`kanca-browser-extension.zip` dosyasını indirip açın, `chrome://extensions`
+**Kurulum:** Kanca uygulamasında **CA / Settings → Browser setup** bölümüne gidip
+**Get the extension**'a tıklayın; eklenti `~/.kanca/browser-extension` klasörüne
+yazılır ve klasör açılır. (Ya da [son sürümden](https://github.com/gorkemguler/Kanca/releases/latest)
+`kanca-browser-extension.zip` dosyasını indirip açın.) Ardından `chrome://extensions`
 (Edge'de `edge://extensions`) sayfasını açın, **Geliştirici modu**nu açın,
-**Paketlenmemiş öğe yükle**'ye tıklayıp açtığınız klasörü seçin. Repoyu
-klonladıysanız doğrudan [`extension/`](extension) klasörünü yükleyebilirsiniz.
-Firefox henüz desteklenmiyor.
+**Paketlenmemiş öğe yükle**'ye tıklayıp klasörü seçin. Firefox henüz desteklenmiyor.
 
 <br clear="right">
 
@@ -106,7 +127,7 @@ Firefox henüz desteklenmiyor.
 | **Aktif tarayıcı** | Talep üzerine, tek bir isteğin insertion point'lerini — query, form gövdesi ve JSON gövdesi parametreleri — yansıyan girdi/XSS, hataya dayalı SQL enjeksiyonu, path traversal, open redirect, template enjeksiyonu (SSTI) ve CRLF/header enjeksiyonu için dener; yalnızca kapsam içindeki host'larla sınırlı. Opt-in bir **agresif** mod, boolean ve time-based SQLi ile time-based komut enjeksiyonu kontrollerini ekler (bunlar hedefi gözlemlenebilir şekilde çalıştırır). Sadece tespit amaçlıdır: her kontrol bir baseline ile karşılaştırma yapar ve elle doğrulanacak bir ipucu işaretler — asla istismar (exploitation) girişiminde bulunmaz. |
 | **Kaydet / içe-dışa aktar** | Tam bir oturumu (flow'lar, kurallar, bulgular, kapsam) bir proje dosyasına kaydedip sonra tekrar açın; yakalanan trafiği HAR 1.2 olarak dışa aktarın ve başka araçlardan HAR yakalamalarını içe aktarın. |
 | **WebSocket desteği** | `ws://` ve `wss://` upgrade'leri şeffaf biçimde köprülenir (normal HTTP için hop-by-hop olarak `Upgrade`/`Connection` header'ları temizlendiğinden eskiden bu bağlantılar bozulurdu) — canlı, bağlantı başına frame kaydıyla birlikte; sıfırdan yazılmış RFC 6455 framing, harici bağımlılık yok. |
-| **Tarayıcı yardımcısı** | Tek tıklık bir [tarayıcı eklentisi](#tarayıcı-eklentisi) tarayıcıyı Kanca'ya yönlendirir; proxy'nin kendisinin sunduğu (asla dışarı iletilmeyen ya da kaydedilmeyen) `http://kanca/` sayfası root CA'yı indirmenizi sağlar. |
+| **Tarayıcı kurulumu** | [Open browser](#tek-tıkla-tarayıcı), CA kurmadan HTTPS'in çalıştığı, önceden ayarlanmış izole bir Chrome/Edge/Brave profili açar; [tarayıcı eklentisi](#tarayıcı-eklentisi) kendi tarayıcınızı Kanca'ya yönlendirir; proxy'nin kendisinin sunduğu (asla dışarı iletilmeyen ya da kaydedilmeyen) `http://kanca/` sayfası root CA'yı indirmenizi sağlar. |
 
 ## Mimari
 
@@ -168,6 +189,7 @@ Bayraklar (flags):
 | `-export-ca PATH` | — | root sertifikayı `PATH`'e yazıp çıkar |
 | `-insecure-upstream` | `true` | upstream sunucu sertifikalarının doğrulamasını atla |
 | `-max-flows` | `100000` | bellekte tutulan azami işlem (transaction) sayısı |
+| `-browser` | `false` | Chrome/Edge/Brave'i, trafiği zaten proxy'den geçen ayrı bir profille açar |
 
 ## Desktop uygulaması
 
@@ -184,9 +206,9 @@ wails dev      # canlı yeniden yükleme ile geliştirme
 wails build    # desktop/build/bin altında native bir binary üretir
 ```
 
-İlk açılışta **CA / Settings** kısmını açın, root sertifikayı tarayıcınıza
-içe aktarın, tarayıcının proxy ayarını başlık çubuğundaki adrese ayarlayın
-ve **Start proxy**'ye basın.
+İlk açılışta, trafiği zaten Kanca'dan geçen bir tarayıcı için **Open browser**'a
+tıklayın. Kendi tarayıcınızı kullanmak isterseniz **CA / Settings → Browser setup**
+bölümünden eklentiyi ekleyin ve root sertifikaya güvenin.
 
 ## Geliştirme
 

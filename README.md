@@ -54,6 +54,25 @@ Pre-built binaries for macOS, Windows and Linux are attached to every
 
 Prefer to build it yourself? See [Desktop app](#desktop-app) below.
 
+## One-click browser
+
+The quickest way to start: click **Open browser** in Kanca's top bar (or under
+**CA / Settings → Browser setup**). Kanca starts the proxy if needed and opens
+Chrome, Edge or Brave in a separate profile that is already routed through it.
+
+- **HTTPS works immediately.** The browser is told to trust only Kanca's own
+  certificate keys, so there is nothing to install in your OS trust store, and
+  every other site keeps normal certificate checks.
+- **Your everyday browser is untouched.** The testing profile lives in
+  `~/.kanca/browser-profile`, with its own cookies and history.
+- **Local targets are captured too**, including `localhost` and `*.localhost`.
+
+Kanca prefers Chrome when it's installed. The browser's own update and sync
+traffic is switched off, but Edge still sends a few requests to Microsoft
+services; set a **Target scope** (CA / Settings) to keep them out of the history.
+
+From the CLI, `go run ./cmd/kanca -browser` does the same.
+
 ## Browser extension
 
 <img src="assets/screenshots/extension.png" alt="Kanca browser extension popup" width="300" align="right">
@@ -74,11 +93,12 @@ for your browser in one click, so you never have to dig through proxy settings:
 - **Conflict warning** — flags when another extension (a VPN or proxy switcher)
   or a policy controls the proxy instead.
 
-**Install:** download `kanca-browser-extension.zip` from the
+**Install:** in the Kanca app, open **CA / Settings → Browser setup** and click
+**Get the extension**; it writes the extension to `~/.kanca/browser-extension`
+and opens that folder. (Or download `kanca-browser-extension.zip` from the
 [latest release](https://github.com/gorkemguler/Kanca/releases/latest) and unzip
-it, open `chrome://extensions` (`edge://extensions` in Edge), turn on
-**Developer mode**, click **Load unpacked** and select the unzipped folder. From a
-clone you can load the [`extension/`](extension) folder directly. Firefox is not
+it.) Then open `chrome://extensions` (`edge://extensions` in Edge), turn on
+**Developer mode**, click **Load unpacked** and select the folder. Firefox is not
 supported yet.
 
 <br clear="right">
@@ -103,7 +123,7 @@ supported yet.
 | **Active scanner** | On demand, probes one request's insertion points — query, form-body and JSON-body parameters — for reflected input/XSS, error-based SQL injection, path traversal, open redirect, template injection (SSTI) and CRLF/header injection, restricted to in-scope hosts. An opt-in **aggressive** mode adds boolean- and time-based SQLi and time-based command-injection checks (these make the target do observable work). Detection-only: every check compares against a baseline and flags a lead to verify by hand — it never attempts exploitation. |
 | **Save / import / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2 and import HAR captures from other tools. |
 | **WebSocket support** | `ws://` and `wss://` upgrades are bridged transparently (they used to break, since `Upgrade`/`Connection` are stripped as hop-by-hop for ordinary HTTP) with a live, per-connection frame log — hand-rolled RFC 6455 framing, no dependency. |
-| **Browser companion** | A one-click [browser extension](#browser-extension) routes the browser through Kanca, and `http://kanca/` — served by the proxy itself, never forwarded or recorded — offers the root CA for download. |
+| **Browser setup** | [Open browser](#one-click-browser) launches a pre-configured, isolated Chrome/Edge/Brave profile where HTTPS works without installing the CA; a [browser extension](#browser-extension) routes your own browser; and `http://kanca/` — served by the proxy itself, never forwarded or recorded — offers the root CA for download. |
 
 ## Architecture
 
@@ -163,6 +183,7 @@ Flags:
 | `-export-ca PATH` | — | write the root certificate to `PATH` and exit |
 | `-insecure-upstream` | `true` | skip verification of upstream server certs |
 | `-max-flows` | `100000` | max transactions retained in memory |
+| `-browser` | `false` | open Chrome/Edge/Brave in a dedicated profile already routed through the proxy |
 
 ## Desktop app
 
@@ -178,9 +199,9 @@ wails dev      # live-reload development
 wails build    # produce a native binary in desktop/build/bin
 ```
 
-On first launch, open **CA / Settings**, import the root certificate into your
-browser, set the browser's proxy to the address in the title bar, and press
-**Start proxy**.
+On first launch, click **Open browser** to get a browser that is already routed
+through Kanca. To use your own browser instead, open **CA / Settings → Browser
+setup**, add the extension, and trust the root certificate.
 
 ## Development
 

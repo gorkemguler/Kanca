@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Kanca",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Route your browser through the Kanca intercepting proxy with one click, and install its CA certificate.",
   "minimum_chrome_version": "102",
   "icons": {
