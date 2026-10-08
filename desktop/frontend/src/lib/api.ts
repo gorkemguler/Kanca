@@ -197,6 +197,8 @@ interface WailsBackend {
   StopProxy(): Promise<void>;
   GetRootCAPEM(): Promise<string>;
   ExportRootCA(path: string): Promise<void>;
+  OpenBrowser(): Promise<string>;
+  ExportExtension(): Promise<string>;
   GetScope(): Promise<ScopeConfig>;
   SetScope(cfg: ScopeConfig): Promise<void>;
   ListHistory(
@@ -262,6 +264,8 @@ export const api = {
   stopProxy: () => backend().StopProxy(),
   getRootCA: () => backend().GetRootCAPEM(),
   exportRootCA: (path: string) => backend().ExportRootCA(path),
+  openBrowser: () => backend().OpenBrowser(),
+  exportExtension: () => backend().ExportExtension(),
   getScope: () => backend().GetScope(),
   setScope: (cfg: ScopeConfig) => backend().SetScope(cfg),
   listHistory: (text: string, methods: string[], searchBodies: boolean) =>

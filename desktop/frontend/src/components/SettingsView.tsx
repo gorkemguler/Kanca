@@ -7,6 +7,28 @@ export default function SettingsView() {
   const [scopeEnabled, setScopeEnabled] = useState(false);
   const [scopeHosts, setScopeHosts] = useState("");
   const [scopeSaved, setScopeSaved] = useState(false);
+  const [browserMsg, setBrowserMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [extDir, setExtDir] = useState("");
+  const [extErr, setExtErr] = useState("");
+
+  const openBrowser = async () => {
+    setBrowserMsg(null);
+    try {
+      const name = await api.openBrowser();
+      setBrowserMsg({ ok: true, text: `Opened ${name}. It starts on http://kanca/, which confirms the routing.` });
+    } catch (e: any) {
+      setBrowserMsg({ ok: false, text: String(e?.message ?? e) });
+    }
+  };
+
+  const getExtension = async () => {
+    setExtErr("");
+    try {
+      setExtDir(await api.exportExtension());
+    } catch (e: any) {
+      setExtErr(String(e?.message ?? e));
+    }
+  };
 
   useEffect(() => {
     api.getRootCA().then(setCa).catch(() => setCa(""));
@@ -41,7 +63,58 @@ export default function SettingsView() {
 
   return (
     <div className="pane pad col" style={{ maxWidth: 820 }}>
-      <h3>Root certificate authority</h3>
+      <h3>Browser setup</h3>
+      <div className="setup-grid">
+        <div className="setup-card">
+          <div className="row">
+            <b>Kanca browser</b>
+            <span className="pill">easiest</span>
+          </div>
+          <p className="dim">
+            Opens Chrome, Edge or Brave in a separate profile that is already
+            routed through Kanca. HTTPS works straight away: nothing is added to
+            your OS trust store and your everyday browser is untouched.
+          </p>
+          <div className="row">
+            <button className="primary" onClick={openBrowser}>
+              Open browser
+            </button>
+          </div>
+          {browserMsg && <p className={browserMsg.ok ? "ok-text" : "err-text"}>{browserMsg.text}</p>}
+        </div>
+        <div className="setup-card">
+          <b>Your own browser</b>
+          <p className="dim">
+            Add the Kanca extension to Chrome, Edge, Brave or Opera to switch
+            the proxy on and off with one click.
+          </p>
+          <div className="row">
+            <button onClick={getExtension}>Get the extension</button>
+          </div>
+          {extErr && <p className="err-text">{extErr}</p>}
+          {extDir && (
+            <ol className="steps">
+              <li>
+                Open <span className="mono">chrome://extensions</span> (Edge:{" "}
+                <span className="mono">edge://extensions</span>).
+              </li>
+              <li>
+                Turn on <b>Developer mode</b>.
+              </li>
+              <li>
+                Click <b>Load unpacked</b> and choose{" "}
+                <span className="mono">{extDir}</span> (opened for you).
+              </li>
+              <li>
+                To intercept HTTPS, open <span className="mono">http://kanca/</span>{" "}
+                through the proxy and trust the certificate.
+              </li>
+            </ol>
+          )}
+        </div>
+      </div>
+
+      <h3 style={{ marginTop: 24 }}>Root certificate authority</h3>
       <div className="callout">
         To intercept HTTPS, import this certificate into your browser or OS
         trust store, then set your browser's proxy to the address shown in the

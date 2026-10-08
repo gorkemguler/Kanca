@@ -64,6 +64,17 @@ body {
 .brand-mark {
   flex-shrink: 0;
 }
+.topbar button,
+.topbar .status-text {
+  white-space: nowrap;
+}
+/* The window's minimum width can't fit every label; drop the redundant ones. */
+@media (max-width: 1100px) {
+  .brand span,
+  .wide-only {
+    display: none;
+  }
+}
 .brand span {
   color: var(--text-dim);
   font-weight: 400;
@@ -363,6 +374,37 @@ textarea.payloads {
   border-radius: 4px;
   padding: 10px 12px;
   line-height: 1.6;
+}
+.setup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+.setup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+.setup-card p,
+.setup-card ol {
+  margin: 0;
+  line-height: 1.55;
+}
+.steps {
+  padding-left: 18px;
+}
+.steps li {
+  margin: 3px 0;
+}
+.ok-text {
+  color: var(--ok);
+}
+.err-text {
+  color: var(--err);
 }
 .rep-tabs {
   display: flex;

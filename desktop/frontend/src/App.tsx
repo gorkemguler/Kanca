@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, FlowView, ProxyStatus } from "./lib/api";
+import { api, on, FlowView, ProxyStatus } from "./lib/api";
 import HistoryView from "./components/HistoryView";
 import InterceptView from "./components/InterceptView";
 import RepeaterView from "./components/RepeaterView";
@@ -36,6 +36,11 @@ export default function App() {
 
   useEffect(() => {
     api.getStatus().then((s) => {
+      setStatus(s);
+      setAddr(s.addr);
+    });
+    // Opening the Kanca browser starts the proxy if it isn't running yet.
+    return on("proxy:status", (s: ProxyStatus) => {
       setStatus(s);
       setAddr(s.addr);
     });
@@ -125,8 +130,14 @@ export default function App() {
           KANCA <span>intercepting proxy</span>
         </div>
         <span className={"status-dot" + (status.running ? " on" : "")} />
-        <span className="dim">
-          {status.running ? `listening on ${status.addr}` : "stopped"}
+        <span className="dim status-text">
+          {status.running ? (
+            <>
+              listening<span className="wide-only"> on {status.addr}</span>
+            </>
+          ) : (
+            "stopped"
+          )}
         </span>
         <input
           className="addr-input"
@@ -136,6 +147,13 @@ export default function App() {
         />
         <button className={status.running ? "danger" : "primary"} onClick={toggleProxy}>
           {status.running ? "Stop proxy" : "Start proxy"}
+        </button>
+        <button
+          disabled={!!busy}
+          title="Open Chrome, Edge or Brave in a separate profile that is already routed through Kanca. HTTPS works without installing the certificate."
+          onClick={() => run("Open browser", async () => void (await api.openBrowser()))}
+        >
+          Open browser
         </button>
         <span className="grow" />
         <button disabled={!!busy} onClick={() => run("Open project", api.loadProject)}>
