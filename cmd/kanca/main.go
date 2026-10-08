@@ -19,6 +19,7 @@ import (
 
 	"github.com/gorkemguler/kanca/internal/cert"
 	"github.com/gorkemguler/kanca/internal/history"
+	"github.com/gorkemguler/kanca/internal/launcher"
 	"github.com/gorkemguler/kanca/internal/proxy"
 )
 
@@ -29,6 +30,7 @@ func main() {
 		exportCA = flag.String("export-ca", "", "write the root CA certificate to this path and exit")
 		insecure = flag.Bool("insecure-upstream", true, "skip verification of upstream TLS certificates")
 		maxFlows = flag.Int("max-flows", 100000, "maximum retained transactions")
+		browser  = flag.Bool("browser", false, "open Chrome/Edge/Brave in a dedicated profile already routed through the proxy")
 	)
 	flag.Parse()
 
@@ -63,6 +65,14 @@ func main() {
 	fmt.Printf("Kanca proxy listening on http://%s\n", p.Addr())
 	fmt.Printf("Root CA: %s (import into your browser/OS to intercept HTTPS)\n", filepath.Join(*caDir, "ca-cert.pem"))
 	fmt.Println("Set this as your HTTP/HTTPS proxy. Ctrl-C to stop.")
+	if *browser {
+		b, err := launcher.Open(ca, p.Addr(), filepath.Join(*caDir, "browser-profile"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "kanca: opening browser: %v\n", err)
+		} else {
+			fmt.Printf("Opened %s, routed through Kanca (HTTPS works without installing the CA).\n", b.Name)
+		}
+	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
