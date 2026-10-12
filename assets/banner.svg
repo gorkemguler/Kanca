@@ -3,73 +3,87 @@
   <desc id="kancaDesc">Intercepting HTTP/HTTPS proxy for authorised security testing</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0d1117"/>
-      <stop offset="100%" stop-color="#161b22"/>
+      <stop offset="0%" stop-color="#16181d"/>
+      <stop offset="100%" stop-color="#1d2027"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#3fb950"/>
-      <stop offset="100%" stop-color="#58a6ff"/>
+    <linearGradient id="hook" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f0903f"/>
+      <stop offset="100%" stop-color="#e8792b"/>
     </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0%" stop-color="#e8792b" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#e8792b" stop-opacity="0"/>
+    </radialGradient>
     <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
       <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#ffffff" stroke-opacity="0.035" stroke-width="1"/>
     </pattern>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b949e"/>
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5b616d"/>
     </marker>
   </defs>
 
   <rect width="1200" height="300" fill="url(#bg)"/>
   <rect width="1200" height="300" fill="url(#grid)"/>
 
-  <!-- traffic path: client -> kanca -> server -->
-  <g transform="translate(0,182)">
-    <line x1="140" y1="0" x2="330" y2="0" stroke="#30363d" stroke-width="2" marker-end="url(#arrow)"/>
-    <line x1="470" y1="0" x2="660" y2="0" stroke="#30363d" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- traffic path: client -> kanca -> target servers -->
+  <g transform="translate(0,170)">
+    <line x1="140" y1="0" x2="332" y2="0" stroke="#2a2e37" stroke-width="2" marker-end="url(#arrow)"/>
+    <line x1="468" y1="0" x2="660" y2="0" stroke="#2a2e37" stroke-width="2" marker-end="url(#arrow)"/>
+    <!-- packets in flight -->
+    <rect x="226" y="-7" width="14" height="14" rx="3" transform="rotate(45 233 0)" fill="#4a9eff"/>
+    <rect x="556" y="-7" width="14" height="14" rx="3" transform="rotate(45 563 0)" fill="#4a9eff" fill-opacity="0.55"/>
 
     <!-- client -->
     <g transform="translate(60,-30)">
-      <rect width="80" height="60" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1.5"/>
-      <rect x="10" y="10" width="60" height="34" rx="3" fill="#0d1117"/>
-      <rect x="24" y="52" width="32" height="5" rx="2" fill="#30363d"/>
+      <rect width="80" height="60" rx="8" fill="#23262f" stroke="#2a2e37" stroke-width="1.5"/>
+      <rect x="10" y="10" width="60" height="34" rx="3" fill="#16181d"/>
+      <rect x="24" y="52" width="32" height="5" rx="2" fill="#2a2e37"/>
     </g>
-    <text x="100" y="55" text-anchor="middle" fill="#8b949e" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">Client</text>
+    <text x="100" y="56" text-anchor="middle" fill="#8b929e" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">Your browser</text>
 
-    <!-- kanca node (interception point) -->
+    <!-- kanca: the hook catching traffic -->
+    <circle cx="400" cy="0" r="92" fill="url(#glow)"/>
     <g transform="translate(400,0)">
-      <circle r="46" fill="#0d1117" stroke="url(#accent)" stroke-width="3"/>
-      <circle r="46" fill="#3fb950" fill-opacity="0.06"/>
-      <path d="M -16 -6 L 0 10 L 20 -14" fill="none" stroke="#3fb950" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="-56" y="-56" width="112" height="112" rx="24" fill="#16181d" stroke="#e8792b" stroke-opacity="0.55" stroke-width="2"/>
+      <g transform="translate(-43.5,-43.5) scale(0.34)">
+        <g fill="none" stroke="url(#hook)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="150" cy="58" r="18"/>
+          <path d="M150 76 L150 150 C150 182 150 198 126 198 C100 198 86 178 86 154 C86 138 95 128 108 124"/>
+          <path d="M108 124 L96 140"/>
+        </g>
+        <rect x="120" y="150" width="22" height="22" rx="5" transform="rotate(45 131 161)" fill="#4a9eff"/>
+      </g>
     </g>
-    <text x="400" y="80" text-anchor="middle" fill="#c9d1d9" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600">Kanca</text>
+    <text x="400" y="84" text-anchor="middle" fill="#d7dae0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600">Kanca</text>
 
-    <!-- server -->
+    <!-- target servers -->
     <g transform="translate(700,-32)">
-      <rect width="80" height="16" rx="3" fill="#21262d" stroke="#30363d" stroke-width="1.5"/>
-      <rect width="80" height="16" y="22" rx="3" fill="#21262d" stroke="#30363d" stroke-width="1.5"/>
-      <rect width="80" height="16" y="44" rx="3" fill="#21262d" stroke="#30363d" stroke-width="1.5"/>
-      <circle cx="10" cy="8" r="2.5" fill="#3fb950"/>
-      <circle cx="10" cy="30" r="2.5" fill="#3fb950"/>
-      <circle cx="10" cy="52" r="2.5" fill="#3fb950"/>
+      <rect width="80" height="16" rx="3" fill="#23262f" stroke="#2a2e37" stroke-width="1.5"/>
+      <rect width="80" height="16" y="22" rx="3" fill="#23262f" stroke="#2a2e37" stroke-width="1.5"/>
+      <rect width="80" height="16" y="44" rx="3" fill="#23262f" stroke="#2a2e37" stroke-width="1.5"/>
+      <circle cx="10" cy="8" r="2.5" fill="#4caf72"/>
+      <circle cx="10" cy="30" r="2.5" fill="#4caf72"/>
+      <circle cx="10" cy="52" r="2.5" fill="#4caf72"/>
     </g>
-    <text x="740" y="55" text-anchor="middle" fill="#8b949e" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">Target servers</text>
+    <text x="740" y="56" text-anchor="middle" fill="#8b929e" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13">Target servers</text>
   </g>
 
   <!-- title block -->
   <g transform="translate(870,0)">
-    <line x1="0" y1="70" x2="0" y2="230" stroke="#30363d" stroke-width="1.5"/>
-    <text x="30" y="130" fill="#f0f6fc" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="46" font-weight="700" letter-spacing="1">Kanca</text>
-    <text x="30" y="163" fill="#8b949e" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">Intercepting HTTP/HTTPS proxy</text>
-    <text x="30" y="185" fill="#8b949e" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">for authorised security testing</text>
+    <line x1="0" y1="70" x2="0" y2="230" stroke="#2a2e37" stroke-width="1.5"/>
+    <text x="30" y="130" fill="#e8792b" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="46" font-weight="700" letter-spacing="1">Kanca</text>
+    <text x="30" y="163" fill="#8b929e" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">Intercepting HTTP/HTTPS proxy</text>
+    <text x="30" y="185" fill="#8b929e" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15">for authorised security testing</text>
 
     <g transform="translate(30,205)" font-family="'SFMono-Regular', Consolas, monospace" font-size="12" font-weight="600">
-      <rect x="0" y="0" width="34" height="20" rx="4" fill="#3fb950" fill-opacity="0.15" stroke="#3fb950" stroke-opacity="0.4"/>
-      <text x="17" y="14" text-anchor="middle" fill="#3fb950">Go</text>
+      <rect x="0" y="0" width="34" height="20" rx="4" fill="#4a9eff" fill-opacity="0.15" stroke="#4a9eff" stroke-opacity="0.4"/>
+      <text x="17" y="14" text-anchor="middle" fill="#4a9eff">Go</text>
 
-      <rect x="44" y="0" width="66" height="20" rx="4" fill="#58a6ff" fill-opacity="0.15" stroke="#58a6ff" stroke-opacity="0.4"/>
-      <text x="77" y="14" text-anchor="middle" fill="#58a6ff">Wails v2</text>
+      <rect x="44" y="0" width="66" height="20" rx="4" fill="#e8792b" fill-opacity="0.15" stroke="#e8792b" stroke-opacity="0.4"/>
+      <text x="77" y="14" text-anchor="middle" fill="#e8792b">Wails v2</text>
 
-      <rect x="120" y="0" width="52" height="20" rx="4" fill="#d29922" fill-opacity="0.15" stroke="#d29922" stroke-opacity="0.4"/>
-      <text x="146" y="14" text-anchor="middle" fill="#d29922">MIT</text>
+      <rect x="120" y="0" width="52" height="20" rx="4" fill="#8b929e" fill-opacity="0.15" stroke="#8b929e" stroke-opacity="0.4"/>
+      <text x="146" y="14" text-anchor="middle" fill="#b4bac4">MIT</text>
     </g>
   </g>
 </svg>
