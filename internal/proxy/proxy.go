@@ -428,8 +428,12 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 		}
 	}
 
+	// One ID per transaction: the held request, the held response and the
+	// recorded flow must all carry the same number.
+	id := nextFlowID()
+
 	// Request-side interception.
-	res := p.interceptor.hold(nextFlowID(), DirectionRequest, authority, req.Method, req.URL.String(), rawReq)
+	res := p.interceptor.hold(id, DirectionRequest, authority, req.Method, req.URL.String(), rawReq)
 	if res.Decision == DecisionDrop {
 		return nil
 	}
@@ -443,7 +447,7 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 	}
 
 	f := &Flow{
-		ID:      nextFlowID(),
+		ID:      id,
 		Scheme:  scheme,
 		Method:  req.Method,
 		Host:    authority,
