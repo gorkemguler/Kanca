@@ -36,7 +36,7 @@ fuzzlamanıza olanak tanır.
     <td width="50%"><img src="assets/screenshots/intruder.png" alt="Intruder"><br><sub><b>Intruder</b> — 1–30 arası kullanıcı ID'leri taranıyor; grep-match iki admin hesabını işaretliyor.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="assets/screenshots/findings.png" alt="Bulgular"><br><sub><b>Bulgular</b> — pasif header/cookie kontrolleri ve aktif tarama ipuçları (XSS, SQLi, path traversal, SSTI, open redirect, CRLF).</sub></td>
+    <td width="50%"><img src="assets/screenshots/findings.png" alt="Bulgular"><br><sub><b>Bulgular</b> — pasif header/cookie kontrolleri, aktif tarama ipuçları (XSS, SQLi, SSTI, open redirect, CRLF) ve Claude'un doğruladığı açıklar (<b>AI</b>).</sub></td>
     <td width="50%"><img src="assets/screenshots/sitemap.png" alt="Site haritası"><br><sub><b>Site haritası</b> — yakalanan endpoint'ler host bazlı bir ağaç olarak.</sub></td>
   </tr>
 </table>
@@ -163,6 +163,69 @@ HTTPS trafiğini görmek için ayrıca
 <br clear="right">
 
 
+## AI asistanı (MCP)
+
+![AI Assistant sekmesi: Claude'un Kanca'daki adımları; yakalanan trafiği okumaktan bir IDOR ve bir SQL injection'ı doğrulamaya kadar](assets/screenshots/ai.png)
+
+Kanca, Claude ile birlikte çalışabilir. Siz hedefi her zamanki gibi gezersiniz;
+[Claude Code](https://claude.com/claude-code) ya da Claude Desktop'taki Claude
+yakaladığınız trafiği okur, zafiyet arar, şüphelerini kendi istekleriyle sınar ve
+doğruladıklarını **Findings** sekmesine kaydeder. Kanca ile
+[Model Context Protocol](https://modelcontextprotocol.io) üzerinden konuşur.
+
+**Açmak için:** CA / Settings altında bir **Target scope** (hedef kapsamı)
+belirleyin, **AI Assistant** sekmesini açın ve **Allow AI assistants to use
+Kanca** kutusunu işaretleyin. Ardından Claude'u bağlayın:
+
+- **Claude Code**: **Copy command** düğmesine basın ve komutu terminalde bir kez
+  çalıştırın. Şuna benzer:
+  ```bash
+  claude mcp add --transport http kanca http://127.0.0.1:8765/mcp --header "Authorization: Bearer <token>"
+  ```
+- **Claude Desktop**: **Add to Claude Desktop** düğmesine basın, sonra Claude
+  Desktop'tan tamamen çıkıp yeniden açın. Kanca kendini
+  `claude_desktop_config.json` dosyasına ekler; diğer sunucularınızı korur ve
+  dosyanın `.bak` kopyasını bırakır. Claude Desktop, Kanca'nın programını küçük
+  bir köprü olarak (`kanca mcp-stdio`) başlatır; bu yüzden Kanca açık ve AI
+  erişimi açık olmalı. Kayıt programın konumunu gösterdiği için önce Kanca'yı
+  kalıcı yerine (ör. Applications) taşıyın.
+
+Sonra örneğin şunu sorun: *"Kanca'daki API isteklerini IDOR ve yetki kontrolü
+açıkları için incele, şüphelendiğin her şeyi doğrula."*
+
+| Araç | Claude'un onunla yapabildiği |
+| --- | --- |
+| `list_flows`, `get_flow` | Yakalanan istekleri listeler ve filtreler; bir isteği ve (çözülmüş) yanıtını okur. |
+| `get_sitemap`, `get_scope` | Hedefin yapısını ve neyi test etmeye izinli olduğunu görür. |
+| `list_findings`, `add_finding` | Kanca'nın bulgularını okur, kanıtıyla yeni bulgu kaydeder. |
+| `send_request` | Kapsamdaki bir host'a ham istek gönderir; istek Proxy History'ye kaydedilir. |
+| `active_scan` | Yakalanmış bir istek üzerinde Kanca'nın aktif tarayıcısını çalıştırır. |
+
+Güvenlik önlemleri:
+
+- **Sadece yerel.** Uç nokta `127.0.0.1:8765` adresini dinler, rastgele 256 bitlik
+  bir token ister (`~/.kanca/mcp.json` içinde, yalnızca sizin okuyabileceğiniz
+  şekilde saklanır) ve web sayfalarından gelen istekleri reddeder. **New token**
+  bağlı tüm istemcilerin erişimini keser.
+- **Sadece kapsam içi.** Claude yalnızca Target scope'taki host'lara istek
+  gönderebilir ve tarama yapabilir; kapsam yoksa sadece okuyabilir. **Read only**
+  modu göndermeyi tamamen kapatır.
+- **Bütçeli.** Oturum başına en fazla 500 istek (aktif tarama istekleri dahil).
+  AI erişimini kapatıp açmak yeni bir oturum başlatır.
+- **Gizli bilgiler varsayılan olarak maskeli.** Cookie, token, parola, API
+  anahtarı ve JWT'ler Claude'a `[[KANCA_SECRET_1]]` gibi yer tutucular olarak
+  gider; Claude istek gönderdiğinde Kanca gerçek değerleri geri koyar.
+  Göstermek için **Mask secrets** işaretini kaldırın.
+- **Hiçbir şey gizli değil.** **Activity** listesi Claude'un attığı her adımı
+  gösterir; gönderdiği istekler Proxy History'de **AI** etiketiyle, bulguları da
+  **AI** rozetiyle görünür.
+
+> Claude'un okuduğu her şey sohbetinizin parçası olarak Anthropic'e gönderilir.
+> Yalnızca test etme izniniz olan ve verisini paylaşabileceğiniz hedeflerde kullanın.
+
+Arayüz olmadan, `kanca -scope shop.example -mcp` aynı uç noktayı
+[CLI](#hızlı-başlangıç--headless-cli)'dan sunar ve bağlantı komutlarını yazdırır.
+
 ## Özellikler (MVP)
 
 | Özellik | Ne yapar |
@@ -181,6 +244,7 @@ HTTPS trafiğini görmek için ayrıca
 | **Aktif tarayıcı** | Talep üzerine, tek bir isteğin insertion point'lerini — query, form gövdesi ve JSON gövdesi parametreleri — yansıyan girdi/XSS, hataya dayalı SQL enjeksiyonu, path traversal, open redirect, template enjeksiyonu (SSTI) ve CRLF/header enjeksiyonu için dener; yalnızca kapsam içindeki host'larla sınırlı. Opt-in bir **agresif** mod, boolean ve time-based SQLi ile time-based komut enjeksiyonu kontrollerini ekler (bunlar hedefi gözlemlenebilir şekilde çalıştırır). Sadece tespit amaçlıdır: her kontrol bir baseline ile karşılaştırma yapar ve elle doğrulanacak bir ipucu işaretler — asla istismar (exploitation) girişiminde bulunmaz. |
 | **Kaydet / içe-dışa aktar** | Tam bir oturumu (flow'lar, kurallar, bulgular, kapsam) bir proje dosyasına kaydedip sonra tekrar açın; yakalanan trafiği HAR 1.2 olarak dışa aktarın ve başka araçlardan HAR yakalamalarını içe aktarın. |
 | **WebSocket desteği** | `ws://` ve `wss://` upgrade'leri şeffaf biçimde köprülenir (normal HTTP için hop-by-hop olarak `Upgrade`/`Connection` header'ları temizlendiğinden eskiden bu bağlantılar bozulurdu) — canlı, bağlantı başına frame kaydıyla birlikte; sıfırdan yazılmış RFC 6455 framing, harici bağımlılık yok. |
+| **AI asistanı (MCP)** | [Claude](#ai-asistanı-mcp)'un yakalanan trafiği okumasını, kapsamdaki host'lara istek gönderip tarama yapmasını ve bulgu raporlamasını sağlar; gizli bilgiler maskelenir, her adım görünür. |
 | **Tarayıcı kurulumu** | [Open browser](#tek-tıkla-tarayıcı), CA kurmadan HTTPS'in çalıştığı, önceden ayarlanmış izole bir Chrome/Edge/Brave profili açar; [tarayıcı eklentisi](#tarayıcı-eklentisi) kendi tarayıcınızı Kanca'ya yönlendirir; proxy'nin kendisinin sunduğu (asla dışarı iletilmeyen ya da kaydedilmeyen) `http://kanca/` sayfası root CA'yı indirmenizi sağlar. |
 
 ## Mimari
@@ -201,6 +265,8 @@ kanca/                      çekirdek modül — saf Go standart kütüphanesi, 
 │   ├── scanner/            yakalanan flow'lar üzerinde pasif güvenlik kontrolleri
 │   ├── activescan/         yıkıcı olmayan aktif problar (opt-in, kapsamla sınırlı)
 │   ├── sitemap/            yakalanan flow'lardan oluşturulan host bazlı URL yolu ağacı
+│   ├── scope/              hedef kapsamı host eşleştirme
+│   ├── mcp/                AI asistanları için MCP sunucusu (+ stdio köprüsü)
 │   ├── diff/               satır bazlı metin diff'i (repeater yanıt karşılaştırması)
 │   ├── har/                HAR 1.2 dışa/içe aktarım
 │   └── project/            bir oturumu kaydet/yükle (flow'lar, kurallar, bulgular, kapsam)
@@ -245,6 +311,12 @@ Bayraklar (flags):
 | `-insecure-upstream` | `true` | upstream sunucu sertifikalarının doğrulamasını atla |
 | `-max-flows` | `100000` | bellekte tutulan azami işlem (transaction) sayısı |
 | `-browser` | `false` | Chrome/Edge/Brave'i, trafiği zaten proxy'den geçen ayrı bir profille açar |
+| `-scope HOSTS` | — | virgülle ayrılmış hedef host'lar; yalnızca bunlar kaydedilir ve AI asistanı yalnızca bunları test edebilir |
+| `-mcp` | `false` | [AI asistanı](#ai-asistanı-mcp) uç noktasını `127.0.0.1:8765` üzerinde sunar |
+| `-mcp-readonly` | `false` | `-mcp` ile: asistan trafiği okuyabilir ama istek gönderemez |
+| `-mcp-no-mask` | `false` | `-mcp` ile: cookie, token ve parolaları asistana maskelemeden gösterir |
+
+`kanca mcp-stdio`, Claude Desktop'ın çalışan bir Kanca'ya ulaşmak için başlattığı köprüdür.
 
 ## Desktop uygulaması
 

@@ -33,7 +33,7 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
     <td width="50%"><img src="assets/screenshots/intruder.png" alt="Intruder"><br><sub><b>Intruder</b> — enumerating user IDs 1–30; grep-match flags the two admin accounts.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="assets/screenshots/findings.png" alt="Findings"><br><sub><b>Findings</b> — passive header/cookie checks plus active-scan leads (XSS, SQLi, path traversal, SSTI, open redirect, CRLF).</sub></td>
+    <td width="50%"><img src="assets/screenshots/findings.png" alt="Findings"><br><sub><b>Findings</b> — passive header/cookie checks, active-scan leads (XSS, SQLi, SSTI, open redirect, CRLF) and issues Claude confirmed (<b>AI</b>).</sub></td>
     <td width="50%"><img src="assets/screenshots/sitemap.png" alt="Site map"><br><sub><b>Site map</b> — captured endpoints as a per-host tree.</sub></td>
   </tr>
 </table>
@@ -157,6 +157,64 @@ To see HTTPS traffic, also
 
 <br clear="right">
 
+## AI assistant (MCP)
+
+![AI Assistant tab: Claude's steps in Kanca, from reading the captured traffic to confirming an IDOR and a SQL injection](assets/screenshots/ai.png)
+
+Kanca can work with Claude. You browse the target as usual; Claude, in
+[Claude Code](https://claude.com/claude-code) or Claude Desktop, reads what you
+captured, looks for vulnerabilities, checks its hunches with its own requests and
+records what it confirms in **Findings**. It talks to Kanca over the
+[Model Context Protocol](https://modelcontextprotocol.io).
+
+**Turn it on:** set a **Target scope** under CA / Settings, open the **AI
+Assistant** tab and tick **Allow AI assistants to use Kanca**. Then connect Claude:
+
+- **Claude Code**: click **Copy command** and run it once in a terminal. It looks like
+  ```bash
+  claude mcp add --transport http kanca http://127.0.0.1:8765/mcp --header "Authorization: Bearer <token>"
+  ```
+- **Claude Desktop**: click **Add to Claude Desktop**, then quit and reopen
+  Claude Desktop. Kanca adds itself to `claude_desktop_config.json`, keeping your
+  other servers and a `.bak` copy of the file; Claude Desktop starts Kanca's
+  binary as a small bridge (`kanca mcp-stdio`), so Kanca must be running with AI
+  access on. Move Kanca to its final place (e.g. Applications) first, since the
+  entry points at the binary.
+
+Then ask, for example: *"Check the API requests in Kanca for IDOR and broken
+access control, and verify anything you suspect."*
+
+| Tool | What Claude can do with it |
+| --- | --- |
+| `list_flows`, `get_flow` | List and filter captured requests; read a request and its (decoded) response. |
+| `get_sitemap`, `get_scope` | See the target's structure and what it is allowed to test. |
+| `list_findings`, `add_finding` | Read Kanca's findings and record new ones with evidence. |
+| `send_request` | Send a raw request to an in-scope host; it is recorded in Proxy History. |
+| `active_scan` | Run Kanca's [active scanner](#features-mvp) on a captured request. |
+
+Guard rails:
+
+- **Local only.** The endpoint listens on `127.0.0.1:8765`, needs a random
+  256-bit token (kept in `~/.kanca/mcp.json`, readable only by you) and refuses
+  requests from web pages. **New token** cuts off every connected client.
+- **In scope only.** Claude can send requests and run scans only against hosts
+  in your Target scope; without a scope it can only read. **Read only** mode
+  takes sending away altogether.
+- **Budgeted.** At most 500 requests per session, active-scan probes included.
+  Turning AI access off and on starts a new session.
+- **Secrets masked by default.** Cookies, tokens, passwords, API keys and JWTs
+  reach Claude as placeholders like `[[KANCA_SECRET_1]]`, and Kanca puts the real
+  values back when Claude sends a request. Untick **Mask secrets** to show them.
+- **Nothing hidden.** The **Activity** list shows every step Claude takes,
+  requests it sends are tagged **AI** in Proxy History, and its findings carry an
+  **AI** badge.
+
+> Whatever Claude reads is sent to Anthropic as part of your conversation. Use
+> it only on targets you're allowed to test and whose data you may share.
+
+Without the GUI, `kanca -scope shop.example -mcp` serves the same endpoint from
+the [CLI](#quick-start--headless-cli) and prints the commands to connect.
+
 ## Features (MVP)
 
 | Feature | What it does |
@@ -175,6 +233,7 @@ To see HTTPS traffic, also
 | **Active scanner** | On demand, probes one request's insertion points — query, form-body and JSON-body parameters — for reflected input/XSS, error-based SQL injection, path traversal, open redirect, template injection (SSTI) and CRLF/header injection, restricted to in-scope hosts. An opt-in **aggressive** mode adds boolean- and time-based SQLi and time-based command-injection checks (these make the target do observable work). Detection-only: every check compares against a baseline and flags a lead to verify by hand — it never attempts exploitation. |
 | **Save / import / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2 and import HAR captures from other tools. |
 | **WebSocket support** | `ws://` and `wss://` upgrades are bridged transparently (they used to break, since `Upgrade`/`Connection` are stripped as hop-by-hop for ordinary HTTP) with a live, per-connection frame log — hand-rolled RFC 6455 framing, no dependency. |
+| **AI assistant (MCP)** | Lets [Claude](#ai-assistant-mcp) read captured traffic, send requests and run scans against in-scope hosts, and report findings, with secrets masked and every step shown. |
 | **Browser setup** | [Open browser](#one-click-browser) launches a pre-configured, isolated Chrome/Edge/Brave profile where HTTPS works without installing the CA; a [browser extension](#browser-extension) routes your own browser; and `http://kanca/` — served by the proxy itself, never forwarded or recorded — offers the root CA for download. |
 
 ## Architecture
@@ -195,6 +254,8 @@ kanca/                      core module — pure Go standard library, no deps
 │   ├── scanner/            passive security checks over captured flows
 │   ├── activescan/         non-destructive active probes (opt-in, scope-gated)
 │   ├── sitemap/            per-host URL path tree built from captured flows
+│   ├── scope/              target-scope host matching
+│   ├── mcp/                MCP server for AI assistants (+ stdio bridge)
 │   ├── diff/               line-oriented text diff (repeater response compare)
 │   ├── har/                HAR 1.2 export and import
 │   └── project/            save/load a session (flows, rules, findings, scope)
@@ -237,6 +298,12 @@ Flags:
 | `-insecure-upstream` | `true` | skip verification of upstream server certs |
 | `-max-flows` | `100000` | max transactions retained in memory |
 | `-browser` | `false` | open Chrome/Edge/Brave in a dedicated profile already routed through the proxy |
+| `-scope HOSTS` | — | comma-separated target hosts; only these are recorded, and only these may be tested by an AI assistant |
+| `-mcp` | `false` | serve the [AI assistant](#ai-assistant-mcp) endpoint on `127.0.0.1:8765` |
+| `-mcp-readonly` | `false` | with `-mcp`: the assistant may read traffic but not send requests |
+| `-mcp-no-mask` | `false` | with `-mcp`: show cookies, tokens and passwords to the assistant unmasked |
+
+`kanca mcp-stdio` is the bridge Claude Desktop launches to reach a running Kanca.
 
 ## Desktop app
 
