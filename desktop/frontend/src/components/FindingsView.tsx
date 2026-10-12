@@ -58,7 +58,7 @@ export default function FindingsView({ onOpenFlow }: Props) {
           ) : null
         )}
         <span className="dim">
-          passive checks over observed traffic, plus any active-scan results
+          passive checks over observed traffic, active-scan results and AI reports
         </span>
         <span className="grow" />
         <button onClick={() => api.clearFindings().then(refresh)}>Clear</button>
@@ -80,11 +80,18 @@ export default function FindingsView({ onOpenFlow }: Props) {
                 <td style={{ color: sevColor[f.severity], fontWeight: 700 }}>
                   {f.severity.toUpperCase()}
                 </td>
-                <td>{f.title}</td>
+                <td>
+                  {f.source === "ai" && (
+                    <span className="ai-tag" title="Reported by an AI assistant">
+                      AI
+                    </span>
+                  )}
+                  {f.title}
+                </td>
                 <td className="mono">{f.host}</td>
                 <td className="dim">{f.detail}</td>
                 <td>
-                  <button onClick={() => onOpenFlow(f.flowId)}>View</button>
+                  {f.flowId > 0 && <button onClick={() => onOpenFlow(f.flowId)}>View</button>}
                 </td>
               </tr>
             ))}

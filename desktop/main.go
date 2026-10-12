@@ -11,7 +11,9 @@ package main
 import (
 	"embed"
 	"log"
+	"os"
 
+	"github.com/gorkemguler/kanca/internal/mcp"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -21,6 +23,15 @@ import (
 var assets embed.FS
 
 func main() {
+	// Claude Desktop launches this binary with "mcp-stdio" to reach the running
+	// app's AI endpoint; that mode has no window.
+	if len(os.Args) > 1 && os.Args[1] == "mcp-stdio" {
+		if err := mcp.RunStdioBridge(configDir(), os.Stdin, os.Stdout); err != nil {
+			log.Fatalf("kanca mcp-stdio: %v", err)
+		}
+		return
+	}
+
 	app, err := NewApp()
 	if err != nil {
 		log.Fatalf("kanca: %v", err)

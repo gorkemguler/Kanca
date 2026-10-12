@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, on, FlowView, ProxyStatus } from "./lib/api";
+import { api, on, FlowView, MCPStatus, ProxyStatus } from "./lib/api";
 import HistoryView from "./components/HistoryView";
 import InterceptView from "./components/InterceptView";
 import RepeaterView from "./components/RepeaterView";
@@ -9,6 +9,7 @@ import FindingsView from "./components/FindingsView";
 import WebSocketView from "./components/WebSocketView";
 import SiteMapView from "./components/SiteMapView";
 import SettingsView from "./components/SettingsView";
+import AIView from "./components/AIView";
 
 type TabKey =
   | "history"
@@ -19,6 +20,7 @@ type TabKey =
   | "rules"
   | "findings"
   | "websocket"
+  | "ai"
   | "settings";
 
 export default function App() {
@@ -28,11 +30,16 @@ export default function App() {
   const [intercepting, setIntercepting] = useState(false);
   const [queueCount, setQueueCount] = useState(0);
   const [busy, setBusy] = useState("");
+  const [ai, setAi] = useState<MCPStatus | null>(null);
 
   // Cross-tab hand-offs from History / Findings.
   const [repeaterQueue, setRepeaterQueue] = useState<number[]>([]);
   const [intruderSeed, setIntruderSeed] = useState<FlowView | null>(null);
   const [focusFlow, setFocusFlow] = useState<number | null>(null);
+
+  useEffect(() => {
+    api.getMCPStatus().then(setAi).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.getStatus().then((s) => {
@@ -92,6 +99,7 @@ export default function App() {
     { key: "rules", label: "Match/Replace" },
     { key: "findings", label: "Findings" },
     { key: "websocket", label: "WebSocket" },
+    { key: "ai", label: "AI Assistant" },
     { key: "settings", label: "CA / Settings" },
   ];
 
@@ -156,6 +164,16 @@ export default function App() {
           Open browser
         </button>
         <span className="grow" />
+        {ai?.running && (
+          <button
+            className="ai-on"
+            title={`AI assistants can use Kanca (${ai.level === "read" ? "read only" : "read and test"}${ai.mask ? ", secrets masked" : ""})`}
+            onClick={() => setTab("ai")}
+          >
+            <span className="status-dot on" />
+            AI on
+          </button>
+        )}
         <button disabled={!!busy} onClick={() => run("Open project", api.loadProject)}>
           Open
         </button>
@@ -212,6 +230,7 @@ export default function App() {
         {tab === "findings" && <FindingsView onOpenFlow={openFlow} />}
         {tab === "websocket" && <WebSocketView />}
         {tab === "sitemap" && <SiteMapView />}
+        {tab === "ai" && <AIView onStatus={setAi} onOpenSettings={() => setTab("settings")} />}
         {tab === "settings" && <SettingsView />}
       </div>
     </div>

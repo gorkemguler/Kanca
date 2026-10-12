@@ -103,7 +103,7 @@ export default function HistoryView({
             <thead>
               <tr>
                 <th style={{ width: 40 }}>#</th>
-                <th style={{ width: 60 }}>Method</th>
+                <th style={{ width: 84 }}>Method</th>
                 <th>Host</th>
                 <th>Path</th>
                 <th style={{ width: 60 }}>Status</th>
@@ -119,7 +119,14 @@ export default function HistoryView({
                   onClick={() => select(r.id)}
                 >
                   <td className="dim">{r.id}</td>
-                  <td className="method">{r.method}</td>
+                  <td className="method">
+                    {r.method}
+                    {r.highlight === "ai" && (
+                      <span className="ai-tag" title={r.comment || "Sent by an AI assistant"}>
+                        AI
+                      </span>
+                    )}
+                  </td>
                   <td>{r.host}</td>
                   <td title={r.path}>{r.path}</td>
                   <td className={statusClass(r.statusCode)}>

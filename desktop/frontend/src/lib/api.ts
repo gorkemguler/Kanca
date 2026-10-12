@@ -139,6 +139,32 @@ export interface Finding {
   host: string;
   url: string;
   flowId: number;
+  /** "ai" when an AI assistant reported it over MCP. */
+  source?: string;
+}
+
+export type MCPLevel = "read" | "readwrite";
+
+export interface MCPActivity {
+  at: string;
+  tool: string;
+  action: string;
+  result: string;
+  error?: boolean;
+}
+
+export interface MCPStatus {
+  enabled: boolean;
+  running: boolean;
+  level: MCPLevel;
+  mask: boolean;
+  url: string;
+  error?: string;
+  sent: number;
+  budget: number;
+  claudeCode: string;
+  claudeDesktop: string;
+  claudeDesktopPath: string;
 }
 
 export interface IntruderResult {
@@ -242,6 +268,11 @@ interface WailsBackend {
   PreviewIntruder(cfg: IntruderConfig): Promise<IntruderPreview>;
   StartIntruder(cfg: IntruderConfig): Promise<void>;
   StopIntruder(): Promise<void>;
+  GetMCPStatus(): Promise<MCPStatus>;
+  SetMCPSettings(enabled: boolean, level: MCPLevel, mask: boolean): Promise<MCPStatus>;
+  RegenerateMCPToken(): Promise<MCPStatus>;
+  GetMCPActivity(): Promise<MCPActivity[]>;
+  AddToClaudeDesktop(): Promise<string>;
 }
 
 interface WailsRuntime {
@@ -312,6 +343,12 @@ export const api = {
   previewIntruder: (cfg: IntruderConfig) => backend().PreviewIntruder(cfg),
   startIntruder: (cfg: IntruderConfig) => backend().StartIntruder(cfg),
   stopIntruder: () => backend().StopIntruder(),
+  getMCPStatus: () => backend().GetMCPStatus(),
+  setMCPSettings: (enabled: boolean, level: MCPLevel, mask: boolean) =>
+    backend().SetMCPSettings(enabled, level, mask),
+  regenerateMCPToken: () => backend().RegenerateMCPToken(),
+  getMCPActivity: () => backend().GetMCPActivity(),
+  addToClaudeDesktop: () => backend().AddToClaudeDesktop(),
 };
 
 /** on subscribes to a Wails runtime event and returns an unsubscribe fn. */

@@ -14,11 +14,13 @@ import (
 	"github.com/gorkemguler/kanca/internal/har"
 	"github.com/gorkemguler/kanca/internal/history"
 	"github.com/gorkemguler/kanca/internal/intruder"
+	"github.com/gorkemguler/kanca/internal/mcp"
 	"github.com/gorkemguler/kanca/internal/project"
 	"github.com/gorkemguler/kanca/internal/proxy"
 	"github.com/gorkemguler/kanca/internal/repeater"
 	"github.com/gorkemguler/kanca/internal/rules"
 	"github.com/gorkemguler/kanca/internal/scanner"
+	"github.com/gorkemguler/kanca/internal/scope"
 	"github.com/gorkemguler/kanca/internal/sitemap"
 	"github.com/gorkemguler/kanca/internal/trust"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -51,6 +53,12 @@ type App struct {
 	rules   *rules.Set
 	scanner *scanner.Scanner
 	ws      *wsStore
+
+	// AI assistant (MCP) endpoint.
+	mcpMu  sync.Mutex
+	mcpCfg mcp.Config
+	mcpSvc *mcp.Service
+	mcpErr string
 }
 
 // NewApp constructs the application backend, loading (or creating) the root CA.
@@ -86,6 +94,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ws.onEvent = func(kind string, session *WSSession, frame *WSFrameView) {
 		wruntime.EventsEmit(a.ctx, "ws:"+kind, session)
 	}
+	a.initMCP()
 }
 
 // ---- Proxy lifecycle -------------------------------------------------------
@@ -222,7 +231,7 @@ func (a *App) GetScope() ScopeConfig {
 func (a *App) SetScope(cfg ScopeConfig) {
 	a.scopeMu.Lock()
 	a.scopeEnabled = cfg.Enabled
-	a.scopeHosts = normalizeHosts(cfg.Hosts)
+	a.scopeHosts = scope.Normalize(cfg.Hosts)
 	a.scopeMu.Unlock()
 	a.withProxy(func(p *proxy.Proxy) { p.SetScope(a.scopeMatcher()) })
 }
@@ -233,40 +242,10 @@ func (a *App) scopeMatcher() func(host string) bool {
 	enabled := a.scopeEnabled
 	hosts := append([]string(nil), a.scopeHosts...)
 	a.scopeMu.Unlock()
-	if !enabled || len(hosts) == 0 {
+	if !enabled {
 		return nil
 	}
-	return func(host string) bool {
-		host = strings.ToLower(host)
-		for _, pat := range hosts {
-			if hostMatches(host, pat) {
-				return true
-			}
-		}
-		return false
-	}
-}
-
-func hostMatches(host, pat string) bool {
-	if pat == "" {
-		return false
-	}
-	if strings.HasPrefix(pat, "*.") {
-		suffix := pat[1:] // ".example.com"
-		return strings.HasSuffix(host, suffix)
-	}
-	return host == pat || strings.HasSuffix(host, "."+pat)
-}
-
-func normalizeHosts(in []string) []string {
-	out := make([]string, 0, len(in))
-	for _, h := range in {
-		h = strings.ToLower(strings.TrimSpace(h))
-		if h != "" {
-			out = append(out, h)
-		}
-	}
-	return out
+	return scope.Matcher(hosts)
 }
 
 // ---- Match & replace rules -------------------------------------------------
