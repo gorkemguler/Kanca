@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 )
 
@@ -56,8 +57,17 @@ func responseToRaw(resp *http.Response, body []byte) []byte {
 	return b.Bytes()
 }
 
+// writeHeaders writes h sorted by name — the order Go's HTTP client and server
+// put on the wire — so a message renders identically every time and what the
+// UI shows matches what is sent.
 func writeHeaders(b *bytes.Buffer, h http.Header, body []byte) {
-	for key, vals := range h {
+	keys := make([]string, 0, len(h))
+	for key := range h {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		vals := h[key]
 		if key == "Host" {
 			continue // written explicitly by the caller
 		}
