@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, on, SiteMapNode } from "../lib/api";
+import { useCoalescedRefresh } from "../lib/coalesce";
 
 function statusClass(code?: number): string {
   if (!code) return "dim";
@@ -54,7 +55,7 @@ function TreeNode({ node, depth }: { node: SiteMapNode; depth: number }) {
 export default function SiteMapView() {
   const [roots, setRoots] = useState<SiteMapNode[]>([]);
 
-  const refresh = async () => setRoots(await api.getSiteMap());
+  const refresh = useCoalescedRefresh(async () => setRoots(await api.getSiteMap()));
 
   useEffect(() => {
     refresh();

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, on, Entry, FlowView } from "../lib/api";
 import RawMessage from "./RawMessage";
+import { useCoalescedRefresh } from "../lib/coalesce";
 
 function statusClass(code: number): string {
   if (code >= 500) return "status-5";
@@ -33,9 +34,9 @@ export default function HistoryView({
   const bodiesRef = useRef(searchBodies);
   bodiesRef.current = searchBodies;
 
-  const refresh = async () => {
+  const refresh = useCoalescedRefresh(async () => {
     setRows(await api.listHistory(filterRef.current, [], bodiesRef.current));
-  };
+  });
 
   useEffect(() => {
     refresh();
