@@ -133,22 +133,31 @@ func (p *Proxy) handleWebSocketPlain(w http.ResponseWriter, r *http.Request) {
 	p.bridgeWebSocket(bufrw.Reader, clientConn, func() { _ = clientConn.Close() }, upstream, r, host, "ws")
 }
 
-// handleWebSocketTunnel proxies a wss:// upgrade discovered inside an
-// already-decrypted CONNECT tunnel. It dials the upstream over TLS, performs
-// the handshake, and on success bridges frames — taking over the connection
-// for the remainder of its life (the caller's request-read loop must stop).
-func (p *Proxy) handleWebSocketTunnel(conn net.Conn, br *bufio.Reader, req *http.Request, authority string) {
-	upstream, err := tls.Dial("tcp", authority, &tls.Config{
-		InsecureSkipVerify: p.cfg.InsecureUpstream, //nolint:gosec // deliberate for interception
-		MinVersion:         tls.VersionTLS10,
-	})
+// handleWebSocketTunnel proxies a WebSocket upgrade found inside a CONNECT
+// tunnel: wss:// when the tunnel was TLS ("https"), ws:// when it was plaintext
+// ("http"). It dials the upstream the same way, performs the handshake, and on
+// success bridges frames — taking over the connection for the remainder of its
+// life (the caller's request-read loop must stop).
+func (p *Proxy) handleWebSocketTunnel(conn net.Conn, br *bufio.Reader, req *http.Request, authority, scheme string) {
+	var upstream net.Conn
+	var err error
+	wsScheme := "ws"
+	if scheme == "https" {
+		wsScheme = "wss"
+		upstream, err = tls.Dial("tcp", authority, &tls.Config{
+			InsecureSkipVerify: p.cfg.InsecureUpstream, //nolint:gosec // deliberate for interception
+			MinVersion:         tls.VersionTLS10,
+		})
+	} else {
+		upstream, err = net.DialTimeout("tcp", authority, 15*time.Second)
+	}
 	if err != nil {
-		writeRawError(conn, "websocket upstream TLS dial failed: "+err.Error())
+		writeRawError(conn, "websocket upstream dial failed: "+err.Error())
 		return
 	}
 	defer upstream.Close()
 
-	p.bridgeWebSocket(br, conn, func() { _ = conn.Close() }, upstream, req, authority, "wss")
+	p.bridgeWebSocket(br, conn, func() { _ = conn.Close() }, upstream, req, authority, wsScheme)
 }
 
 // bridgeWebSocket performs the upstream handshake, relays the response back

@@ -299,21 +299,47 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	writeCapturedResponse(w, f)
 }
 
-// handleConnect terminates the client's TLS session using a generated leaf
-// certificate, then serves the decrypted HTTP requests inside the tunnel.
+// tlsHandshakeRecord is the first byte of every TLS connection (a handshake
+// record carrying the ClientHello).
+const tlsHandshakeRecord = 0x16
+
+// peekedConn reads through r, so bytes already peeked off the connection are
+// not lost.
+type peekedConn struct {
+	net.Conn
+	r *bufio.Reader
+}
+
+func (c *peekedConn) Read(b []byte) (int, error) { return c.r.Read(b) }
+
+// handleConnect accepts a tunnel and serves the HTTP inside it. Usually that is
+// TLS, which is terminated with a generated leaf certificate; but Chromium also
+// tunnels plain ws:// through CONNECT, so a tunnel that doesn't open with a TLS
+// handshake is served as plaintext HTTP.
 func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		http.Error(w, "hijacking unsupported", http.StatusInternalServerError)
 		return
 	}
-	clientConn, _, err := hj.Hijack()
+	rawConn, _, err := hj.Hijack()
 	if err != nil {
 		return
 	}
-	defer clientConn.Close()
+	defer rawConn.Close()
 
-	if _, err := clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
+	if _, err := rawConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
+		return
+	}
+
+	br := bufio.NewReader(rawConn)
+	first, err := br.Peek(1)
+	if err != nil {
+		return
+	}
+	clientConn := &peekedConn{Conn: rawConn, r: br}
+	if first[0] != tlsHandshakeRecord {
+		p.serveTunnel(clientConn, r.Host, "http")
 		return
 	}
 
@@ -338,19 +364,20 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tlsConn.Close()
 
-	p.serveTunnel(tlsConn, r.Host)
+	p.serveTunnel(tlsConn, r.Host, "https")
 }
 
-// serveTunnel reads sequential HTTP requests off a decrypted connection and
-// proxies each to the upstream authority, writing responses back in order.
-func (p *Proxy) serveTunnel(conn net.Conn, authority string) {
+// serveTunnel reads sequential HTTP requests off a tunnel connection (decrypted
+// for "https", as-is for "http") and proxies each to the upstream authority,
+// writing responses back in order.
+func (p *Proxy) serveTunnel(conn net.Conn, authority, scheme string) {
 	br := bufio.NewReader(conn)
 	for {
 		req, err := http.ReadRequest(br)
 		if err != nil {
 			return // client closed the tunnel or sent garbage
 		}
-		req.URL.Scheme = "https"
+		req.URL.Scheme = scheme
 		req.URL.Host = authority
 		if req.Host == "" {
 			req.Host = authority
@@ -360,11 +387,11 @@ func (p *Proxy) serveTunnel(conn net.Conn, authority string) {
 			// Bridging takes over the connection for its remaining lifetime;
 			// once it returns there is nothing left to read further requests
 			// from, so the tunnel's request loop ends here.
-			p.handleWebSocketTunnel(conn, br, req, authority)
+			p.handleWebSocketTunnel(conn, br, req, authority, scheme)
 			return
 		}
 
-		f := p.roundTrip("https", authority, req)
+		f := p.roundTrip(scheme, authority, req)
 		if f == nil {
 			return // dropped: tear the tunnel down
 		}
