@@ -14,16 +14,29 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gorkemguler/kanca/internal/cert"
 	"github.com/gorkemguler/kanca/internal/history"
 	"github.com/gorkemguler/kanca/internal/launcher"
+	"github.com/gorkemguler/kanca/internal/mcp"
 	"github.com/gorkemguler/kanca/internal/proxy"
+	"github.com/gorkemguler/kanca/internal/scanner"
+	"github.com/gorkemguler/kanca/internal/scope"
 )
 
 func main() {
+	// Claude Desktop launches "kanca mcp-stdio" to reach a running Kanca's AI
+	// endpoint (desktop app or "kanca -mcp").
+	if len(os.Args) > 1 && os.Args[1] == "mcp-stdio" {
+		if err := mcp.RunStdioBridge(defaultCADir(), os.Stdin, os.Stdout); err != nil {
+			fatal("mcp-stdio: %v", err)
+		}
+		return
+	}
+
 	var (
 		addr     = flag.String("addr", "127.0.0.1:8080", "proxy listen address")
 		caDir    = flag.String("cadir", defaultCADir(), "directory holding the root CA")
@@ -31,6 +44,10 @@ func main() {
 		insecure = flag.Bool("insecure-upstream", true, "skip verification of upstream TLS certificates")
 		maxFlows = flag.Int("max-flows", 100000, "maximum retained transactions")
 		browser  = flag.Bool("browser", false, "open Chrome/Edge/Brave in a dedicated profile already routed through the proxy")
+		scopeArg = flag.String("scope", "", "comma-separated target hosts; only these are recorded, and the only ones an AI assistant may test")
+		aiFlag   = flag.Bool("mcp", false, "let AI assistants (Claude Code, Claude Desktop) use Kanca over MCP on 127.0.0.1:8765")
+		aiRead   = flag.Bool("mcp-readonly", false, "with -mcp: the assistant may read traffic but not send requests")
+		aiRaw    = flag.Bool("mcp-no-mask", false, "with -mcp: show cookies, tokens and passwords to the assistant unmasked")
 	)
 	flag.Parse()
 
@@ -48,11 +65,19 @@ func main() {
 	}
 
 	store := history.New(*maxFlows)
+	findings := scanner.New()
+	store.Subscribe(func(id int64) {
+		if f, ok := store.Get(id); ok {
+			findings.Inspect(f)
+		}
+	})
+	scopeHosts := scope.Normalize(strings.Split(*scopeArg, ","))
 
 	p, err := proxy.New(proxy.Config{Addr: *addr, CA: ca, InsecureUpstream: *insecure})
 	if err != nil {
 		fatal("creating proxy: %v", err)
 	}
+	p.SetScope(scope.Matcher(scopeHosts))
 	p.OnFlow(func(f *proxy.Flow) {
 		store.Add(f)
 		printFlow(f)
@@ -74,6 +99,10 @@ func main() {
 		}
 	}
 
+	if *aiFlag {
+		startMCP(*caDir, store, findings, scopeHosts, *aiRead, !*aiRaw)
+	}
+
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	<-sig
@@ -82,6 +111,45 @@ func main() {
 	defer cancel()
 	_ = p.Stop(ctx)
 	fmt.Printf("\nstopped; %d transactions captured\n", store.Len())
+}
+
+// startMCP serves the AI assistant endpoint for this session and prints how
+// to connect Claude Code and Claude Desktop.
+func startMCP(dir string, store *history.Store, findings *scanner.Scanner, hosts []string, readOnly, mask bool) {
+	cfg, err := mcp.LoadConfig(dir)
+	if err != nil {
+		fatal("loading AI settings: %v", err)
+	}
+	// Persist only the token (so the stdio bridge can find it); this session's
+	// level and masking come from the flags and don't change the desktop app's.
+	if err := mcp.SaveConfig(dir, cfg); err != nil {
+		fatal("saving AI settings: %v", err)
+	}
+	cfg.Mask, cfg.Level = mask, mcp.LevelReadWrite
+	if readOnly {
+		cfg.Level = mcp.LevelRead
+	}
+	srv := mcp.NewServer(mcp.Deps{
+		Store:      store,
+		Scanner:    findings,
+		Scope:      func() func(string) bool { return scope.Matcher(hosts) },
+		ScopeHosts: func() []string { return hosts },
+		Version:    "cli",
+	}, func() mcp.Options { return mcp.Options{Level: cfg.Level, Mask: cfg.Mask} })
+	if err := (&mcp.Service{Server: srv}).Start(cfg.Addr, cfg.Token); err != nil {
+		fatal("starting AI endpoint: %v", err)
+	}
+	fmt.Printf("\nAI assistant endpoint: %s (%s", cfg.URL(), cfg.Level)
+	if cfg.Mask {
+		fmt.Print(", secrets masked")
+	}
+	fmt.Println(")")
+	if len(hosts) == 0 {
+		fmt.Println("  No -scope given: the assistant can read traffic but not send requests.")
+	}
+	fmt.Printf("  Claude Code:    claude mcp add --transport http kanca %s --header \"Authorization: Bearer %s\"\n", cfg.URL(), cfg.Token)
+	exe, _ := os.Executable()
+	fmt.Printf("  Claude Desktop: add {\"command\": %q, \"args\": [\"mcp-stdio\"]} under mcpServers.kanca\n", exe)
 }
 
 func printFlow(f *proxy.Flow) {
