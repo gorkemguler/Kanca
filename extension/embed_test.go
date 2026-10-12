@@ -12,9 +12,13 @@ func TestEmbedHasLoadableExtension(t *testing.T) {
 		t.Fatalf("manifest: %v", err)
 	}
 	var m struct {
-		Action     struct{ DefaultPopup string `json:"default_popup"` } `json:"action"`
-		Background struct{ ServiceWorker string `json:"service_worker"` } `json:"background"`
-		Icons      map[string]string `json:"icons"`
+		Action struct {
+			DefaultPopup string `json:"default_popup"`
+		} `json:"action"`
+		Background struct {
+			ServiceWorker string `json:"service_worker"`
+		} `json:"background"`
+		Icons map[string]string `json:"icons"`
 	}
 	if err := json.Unmarshal(raw, &m); err != nil {
 		t.Fatalf("parse manifest: %v", err)
