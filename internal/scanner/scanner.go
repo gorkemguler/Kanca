@@ -32,6 +32,9 @@ type Finding struct {
 	Host     string   `json:"host"`
 	URL      string   `json:"url"`
 	FlowID   int64    `json:"flowId"`
+	// Source is "ai" for findings an AI assistant recorded through the MCP
+	// endpoint; empty for Kanca's own scanners.
+	Source string `json:"source,omitempty"`
 }
 
 // Scanner accumulates de-duplicated findings across inspected flows.

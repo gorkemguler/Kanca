@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -86,5 +87,42 @@ func TestActiveScanNoParams(t *testing.T) {
 	}
 	if len(findings) != 0 {
 		t.Fatalf("no query params: expected no findings, got %+v", findings)
+	}
+}
+
+func TestBeforeSendCountsAndLimitsRequests(t *testing.T) {
+	var hits atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		fmt.Fprint(w, "ok")
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	raw := []byte("GET /?q=hello&id=1 HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+
+	var asked int64
+	if _, err := Run(context.Background(), Config{
+		Scheme: "http", Host: u.Host, Raw: raw,
+		BeforeSend: func() bool { asked++; return true },
+	}); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if asked == 0 || asked != hits.Load() {
+		t.Fatalf("BeforeSend called %d times for %d requests", asked, hits.Load())
+	}
+
+	hits.Store(0)
+	allowed := int64(3)
+	_, _ = Run(context.Background(), Config{
+		Scheme: "http", Host: u.Host, Raw: raw,
+		BeforeSend: func() bool { allowed--; return allowed >= 0 },
+	})
+	if hits.Load() != 3 {
+		t.Fatalf("a budget of 3 let %d requests through", hits.Load())
+	}
+	if _, err := Run(context.Background(), Config{
+		Scheme: "http", Host: u.Host, Raw: raw, BeforeSend: func() bool { return false },
+	}); err == nil {
+		t.Fatal("a scan with no budget should fail before sending anything")
 	}
 }

@@ -16,6 +16,7 @@ package activescan
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -47,6 +48,10 @@ type Config struct {
 	// (default 3s). Lower values make tests fast; it also tunes the detection
 	// threshold.
 	TimeDelay time.Duration
+	// BeforeSend, if set, is called before every request the scan sends, the
+	// baseline included; returning false skips that request. It lets callers
+	// count requests against a budget.
+	BeforeSend func() bool
 }
 
 // reflectionToken is a benign, unique marker injected to detect whether input
@@ -109,6 +114,9 @@ func Run(ctx context.Context, cfg Config) ([]scanner.Finding, error) {
 
 	// Baseline response, used to avoid reporting signals that are always present
 	// regardless of input, and as the reference for timing/differential checks.
+	if cfg.BeforeSend != nil && !cfg.BeforeSend() {
+		return nil, errors.New("activescan: request budget exhausted")
+	}
 	baseFlow := sender.Send(ctx, cfg.Raw, cfg.Scheme, cfg.Host)
 	r := &runner{
 		ctx:      ctx,
@@ -164,6 +172,9 @@ func (r *runner) add(sev scanner.Severity, title, detail string) {
 // send issues one probe against an insertion point and returns the flow, or nil
 // on a transport error.
 func (r *runner) send(ip insertionPoint, value string) *proxy.Flow {
+	if r.cfg.BeforeSend != nil && !r.cfg.BeforeSend() {
+		return nil
+	}
 	f := r.sender.Send(r.ctx, ip.build(value), r.cfg.Scheme, r.cfg.Host)
 	if f.Error != "" {
 		return nil
@@ -176,6 +187,9 @@ func (r *runner) send(ip insertionPoint, value string) *proxy.Flow {
 // decode). Points that cannot carry a raw value (e.g. JSON) have build only.
 func (r *runner) sendRaw(ip insertionPoint, encoded string) *proxy.Flow {
 	if ip.buildRaw == nil {
+		return nil
+	}
+	if r.cfg.BeforeSend != nil && !r.cfg.BeforeSend() {
 		return nil
 	}
 	f := r.sender.Send(r.ctx, ip.buildRaw(encoded), r.cfg.Scheme, r.cfg.Host)
