@@ -40,19 +40,70 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
 
 <sub>Screenshots show Kanca against a deliberately weak demo shop running locally.</sub>
 
-## Download
+## Installation
 
-Pre-built binaries for macOS, Windows and Linux are attached to every
-[release](https://github.com/gorkemguler/Kanca/releases).
+### 1. Download and run
+
+Grab the file for your system from the
+[latest release](https://github.com/gorkemguler/Kanca/releases/latest):
 
 | Platform | File | Run |
 | --- | --- | --- |
-| macOS (universal) | `kanca-macos-universal.zip` | Unzip, then right-click `kanca.app` → **Open** on first launch (it isn't notarised, so Gatekeeper asks once). |
-| Windows (x64) | `kanca-windows-amd64.zip` | Unzip and run `kanca.exe`. |
+| macOS (Intel + Apple silicon) | `kanca-macos-universal.zip` | Unzip, then right-click `kanca.app` → **Open** the first time (it isn't notarised, so Gatekeeper asks once). |
+| Windows (x64) | `kanca-windows-amd64.zip` | Unzip and run `kanca.exe`. If SmartScreen warns, choose **More info → Run anyway**. |
 | Linux (x64) | `kanca-linux-amd64.tar.gz` | Extract and run `./kanca` (needs `libgtk-3` and `libwebkit2gtk-4.0`). |
-| Browser extension | `kanca-browser-extension.zip` | See [Browser extension](#browser-extension) below. |
 
-Prefer to build it yourself? See [Desktop app](#desktop-app) below.
+Prefer to build it yourself? See [Desktop app](#desktop-app).
+
+### 2. Start intercepting
+
+**Easiest: the Kanca browser.** Click **Open browser** in the top bar. Kanca
+starts the proxy and opens Chrome, Edge or Brave in a separate profile that is
+already routed through it. HTTPS works right away, so **you can skip step 3**.
+See [One-click browser](#one-click-browser).
+
+**Or your own browser.** Route it through Kanca with the
+[browser extension](#browser-extension) (Chrome, Edge, Brave, Opera), or set its
+HTTP and HTTPS proxy to `127.0.0.1:8080` by hand. Then continue with step 3.
+
+### 3. Trust the Kanca certificate (your own browser only)
+
+To read HTTPS traffic, your browser has to trust Kanca's root certificate. Get
+the file by opening `http://kanca/` through the proxy, or with **CA / Settings →
+Export to file…**; Kanca also keeps it at `~/.kanca/ca-cert.pem`.
+
+- **macOS**: in the app, click **CA / Settings → Install on this Mac**. macOS asks
+  for your password or Touch ID, and the status turns green once Safari, Chrome
+  and Edge trust the certificate. Or in Terminal:
+
+  ```bash
+  security add-trusted-cert -r trustRoot -p ssl -k ~/Library/Keychains/login.keychain-db ~/.kanca/ca-cert.pem
+  ```
+
+- **Windows**: double-click `kanca-ca.crt` → **Install Certificate** → **Current
+  User** → **Place all certificates in the following store** → **Trusted Root
+  Certification Authorities**. Or in a terminal:
+
+  ```powershell
+  certutil -user -addstore Root kanca-ca.crt
+  ```
+
+- **Linux**: Chrome, Edge and Chromium use their own certificate database:
+  **Settings → Privacy and security → Security → Manage certificates →
+  Authorities → Import**. Or, with `libnss3-tools` installed:
+
+  ```bash
+  certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n "Kanca Root CA" -i kanca-ca.crt
+  ```
+
+- **Firefox (any OS)** keeps a separate list: **Settings → Privacy & Security →
+  Certificates → View Certificates → Authorities → Import**, then tick *Trust this
+  CA to identify websites*.
+
+Restart the browser if it was already open. **Remove the certificate when you're
+done testing**: on macOS click **CA / Settings → Remove from this Mac**; on
+Windows run `certutil -user -delstore Root "Kanca Root CA"`; elsewhere delete
+*Kanca Root CA* where you imported it.
 
 ## One-click browser
 
@@ -101,21 +152,10 @@ it.) Then open `chrome://extensions` (`edge://extensions` in Edge), turn on
 **Developer mode**, click **Load unpacked** and select the folder. Firefox is not
 supported yet.
 
-**Trust the certificate (for HTTPS in your own browser):** on macOS, click
-**CA / Settings → Install on this Mac**; macOS asks for your password and the
-status turns green once Safari, Chrome and Edge trust it. **Remove from this Mac**
-undoes it. Without the app, run:
-
-```bash
-security add-trusted-cert -r trustRoot -p ssl -k ~/Library/Keychains/login.keychain-db ~/Downloads/kanca-ca.crt
-```
-
-On other systems, open `http://kanca/` through the proxy for step-by-step
-instructions. Firefox uses its own certificate list on every platform.
+To see HTTPS traffic, also
+[trust the Kanca certificate](#3-trust-the-kanca-certificate-your-own-browser-only).
 
 <br clear="right">
-
-## Features (MVP)
 
 ## Features (MVP)
 
@@ -178,9 +218,10 @@ go run ./cmd/kanca -addr 127.0.0.1:8080
 ```
 
 Then point your browser's HTTP/HTTPS proxy at `127.0.0.1:8080` (or switch on the
-[browser extension](#browser-extension)). To intercept HTTPS, browse to
+[browser extension](#browser-extension)), or pass `-browser` to open a browser
+that's already set up. To intercept HTTPS in your own browser, browse to
 `http://kanca/` through the proxy and download the root certificate, or export it
-from the CLI, then import it into your browser/OS trust store:
+from the CLI, then [trust it](#3-trust-the-kanca-certificate-your-own-browser-only):
 
 ```bash
 go run ./cmd/kanca -export-ca kanca-ca.pem

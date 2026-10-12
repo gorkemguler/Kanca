@@ -43,19 +43,70 @@ fuzzlamanıza olanak tanır.
 
 <sub>Ekran görüntüleri, yerelde çalışan ve bilerek zayıf bırakılmış bir demo mağazaya karşı alınmıştır.</sub>
 
-## İndirme
+## Kurulum
 
-macOS, Windows ve Linux için derlenmiş sürümler her
-[release](https://github.com/gorkemguler/Kanca/releases) içinde hazır.
+### 1. İndirip çalıştırın
+
+Sisteminize uygun dosyayı [son sürümden](https://github.com/gorkemguler/Kanca/releases/latest) indirin:
 
 | Platform | Dosya | Çalıştırma |
 | --- | --- | --- |
-| macOS (universal) | `kanca-macos-universal.zip` | Açın, ilk açılışta `kanca.app`'e sağ tık → **Aç** (notarize edilmediği için Gatekeeper bir kez sorar). |
-| Windows (x64) | `kanca-windows-amd64.zip` | Açın ve `kanca.exe`'yi çalıştırın. |
+| macOS (Intel + Apple silicon) | `kanca-macos-universal.zip` | Açın, ilk seferde `kanca.app`'e sağ tık → **Aç** (notarize edilmediği için Gatekeeper bir kez sorar). |
+| Windows (x64) | `kanca-windows-amd64.zip` | Açın ve `kanca.exe`'yi çalıştırın. SmartScreen uyarırsa **Ek bilgi → Yine de çalıştır**'ı seçin. |
 | Linux (x64) | `kanca-linux-amd64.tar.gz` | Çıkartın ve `./kanca`'yı çalıştırın (`libgtk-3` ve `libwebkit2gtk-4.0` gerekir). |
-| Tarayıcı eklentisi | `kanca-browser-extension.zip` | Aşağıdaki [Tarayıcı eklentisi](#tarayıcı-eklentisi) bölümüne bakın. |
 
-Kendiniz derlemek isterseniz aşağıdaki [Desktop uygulaması](#desktop-uygulaması) bölümüne bakın.
+Kendiniz derlemek isterseniz [Desktop uygulaması](#desktop-uygulaması) bölümüne bakın.
+
+### 2. Yakalamaya başlayın
+
+**En kolayı: Kanca tarayıcısı.** Üst bardaki **Open browser**'a tıklayın. Kanca
+proxy'yi başlatır ve Chrome, Edge veya Brave'i trafiği zaten Kanca'dan geçen ayrı
+bir profille açar. HTTPS hemen çalışır, yani **3. adımı atlayabilirsiniz**.
+Ayrıntılar: [Tek tıkla tarayıcı](#tek-tıkla-tarayıcı).
+
+**Ya da kendi tarayıcınız.** [Tarayıcı eklentisi](#tarayıcı-eklentisi) (Chrome,
+Edge, Brave, Opera) ile Kanca'ya yönlendirin veya HTTP ve HTTPS proxy ayarını elle
+`127.0.0.1:8080` yapın. Ardından 3. adıma geçin.
+
+### 3. Kanca sertifikasına güvenin (sadece kendi tarayıcınız için)
+
+HTTPS trafiğini okuyabilmek için tarayıcınızın Kanca'nın root sertifikasına
+güvenmesi gerekir. Dosyayı proxy üzerinden `http://kanca/` adresini açarak ya da
+**CA / Settings → Export to file…** ile alın; Kanca ayrıca `~/.kanca/ca-cert.pem`
+konumunda saklar.
+
+- **macOS**: uygulamada **CA / Settings → Install on this Mac**'e tıklayın. macOS
+  şifrenizi veya Touch ID'nizi ister; Safari, Chrome ve Edge sertifikaya
+  güvendiğinde durum yeşile döner. Ya da Terminal'de:
+
+  ```bash
+  security add-trusted-cert -r trustRoot -p ssl -k ~/Library/Keychains/login.keychain-db ~/.kanca/ca-cert.pem
+  ```
+
+- **Windows**: `kanca-ca.crt`'ye çift tıklayın → **Sertifika Yükle** → **Geçerli
+  Kullanıcı** → **Tüm sertifikaları aşağıdaki depolama alanına yerleştir** →
+  **Güvenilen Kök Sertifika Yetkilileri**. Ya da bir terminalde:
+
+  ```powershell
+  certutil -user -addstore Root kanca-ca.crt
+  ```
+
+- **Linux**: Chrome, Edge ve Chromium kendi sertifika veritabanlarını kullanır:
+  **Ayarlar → Gizlilik ve güvenlik → Güvenlik → Sertifikaları yönet → Yetkililer →
+  İçe aktar**. Ya da `libnss3-tools` kuruluysa:
+
+  ```bash
+  certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n "Kanca Root CA" -i kanca-ca.crt
+  ```
+
+- **Firefox (her işletim sistemi)** ayrı bir liste tutar: **Ayarlar → Gizlilik ve
+  Güvenlik → Sertifikalar → Sertifikaları Göster → Yetkililer → İçe aktar**, ardından
+  *Web sitelerini tanımlamak için bu CA'ya güven* kutusunu işaretleyin.
+
+Tarayıcı açıksa yeniden başlatın. **Test bitince sertifikayı kaldırın**: macOS'ta
+**CA / Settings → Remove from this Mac**; Windows'ta
+`certutil -user -delstore Root "Kanca Root CA"`; diğerlerinde içe aktardığınız
+yerden *Kanca Root CA*'yı silin.
 
 ## Tek tıkla tarayıcı
 
@@ -106,17 +157,8 @@ yazılır ve klasör açılır. (Ya da [son sürümden](https://github.com/gorke
 (Edge'de `edge://extensions`) sayfasını açın, **Geliştirici modu**nu açın,
 **Paketlenmemiş öğe yükle**'ye tıklayıp klasörü seçin. Firefox henüz desteklenmiyor.
 
-**Sertifikaya güvenin (kendi tarayıcınızda HTTPS için):** macOS'ta
-**CA / Settings → Install on this Mac**'e tıklayın; macOS şifrenizi ister ve
-Safari, Chrome ve Edge sertifikaya güvendiğinde durum yeşile döner.
-**Remove from this Mac** geri alır. Uygulama olmadan şu komutu çalıştırın:
-
-```bash
-security add-trusted-cert -r trustRoot -p ssl -k ~/Library/Keychains/login.keychain-db ~/Downloads/kanca-ca.crt
-```
-
-Diğer sistemlerde adım adım talimatlar için proxy üzerinden `http://kanca/`
-adresini açın. Firefox her platformda kendi sertifika listesini kullanır.
+HTTPS trafiğini görmek için ayrıca
+[Kanca sertifikasına güvenin](#3-kanca-sertifikasına-güvenin-sadece-kendi-tarayıcınız-için).
 
 <br clear="right">
 
@@ -183,10 +225,11 @@ go run ./cmd/kanca -addr 127.0.0.1:8080
 ```
 
 Ardından tarayıcınızın HTTP/HTTPS proxy ayarını `127.0.0.1:8080` olarak
-belirleyin (ya da [tarayıcı eklentisini](#tarayıcı-eklentisi) açın). HTTPS'i de
-yakalamak için proxy üzerinden `http://kanca/` adresine gidip root sertifikayı
-indirin veya CLI ile dışa aktarın, sonra tarayıcınızın/işletim sisteminizin güven
-deposuna ekleyin:
+belirleyin (ya da [tarayıcı eklentisini](#tarayıcı-eklentisi) açın), veya hazır
+ayarlı bir tarayıcı için `-browser` bayrağını kullanın. Kendi tarayıcınızda HTTPS'i
+de yakalamak için proxy üzerinden `http://kanca/` adresine gidip root sertifikayı
+indirin veya CLI ile dışa aktarın, sonra
+[sertifikaya güvenin](#3-kanca-sertifikasına-güvenin-sadece-kendi-tarayıcınız-için):
 
 ```bash
 go run ./cmd/kanca -export-ca kanca-ca.pem

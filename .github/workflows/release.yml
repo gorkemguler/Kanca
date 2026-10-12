@@ -108,15 +108,18 @@ jobs:
           body: |
             ## Install
 
-            Download the file for your OS below, then:
+            **1. Download and run** the file for your system:
 
-            - **macOS** (`kanca-macos-universal.zip`) — unzip, then right-click `kanca.app` → **Open** on first launch (unsigned, so Gatekeeper asks once).
-            - **Windows** (`kanca-windows-amd64.zip`) — unzip and run `kanca.exe`.
-            - **Linux** (`kanca-linux-amd64.tar.gz`) — extract and run `./kanca` (needs `libgtk-3` and `libwebkit2gtk-4.0`).
-            - **Browser extension** (`kanca-browser-extension.zip`, Chrome / Edge / Brave / Opera) — unzip, open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick the unzipped folder.
+            - **macOS** (`kanca-macos-universal.zip`): unzip, then right-click `kanca.app` → **Open** the first time (it isn't notarised, so Gatekeeper asks once).
+            - **Windows** (`kanca-windows-amd64.zip`): unzip and run `kanca.exe`. If SmartScreen warns, choose **More info → Run anyway**.
+            - **Linux** (`kanca-linux-amd64.tar.gz`): extract and run `./kanca` (needs `libgtk-3` and `libwebkit2gtk-4.0`).
 
-            **Quickest start:** open Kanca and click **Open browser**. It starts the proxy and opens Chrome, Edge or Brave in a separate profile that is already routed through Kanca; HTTPS works without installing anything.
+            **2. Start intercepting.** Easiest: click **Open browser**. Kanca opens Chrome, Edge or Brave already routed through it, and HTTPS works without installing anything, so you can skip step 3. To use your own browser instead, add the extension (`kanca-browser-extension.zip`, or **CA / Settings → Get the extension** in the app): unzip it, open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick the folder.
 
-            **Your own browser:** add the extension (in the app: **CA / Settings → Get the extension**, or the zip above) and switch it on. To intercept HTTPS, open `http://kanca/` through the proxy, or click **Install CA certificate** in the extension, and trust the downloaded certificate.
+            **3. Trust the Kanca certificate** (your own browser only):
 
-            Authorised testing only.
+            - **macOS**: in the app, **CA / Settings → Install on this Mac**. macOS asks for your password or Touch ID.
+            - **Windows**: open `http://kanca/` through the proxy, download `kanca-ca.crt`, double-click it → **Install Certificate** → **Current User** → **Trusted Root Certification Authorities**.
+            - **Linux and Firefox**: follow the [installation guide](https://github.com/gorkemguler/Kanca#3-trust-the-kanca-certificate-your-own-browser-only).
+
+            Remove the certificate when you're done testing. Authorised testing only.
