@@ -134,6 +134,8 @@ jobs:
             - **Windows**: open `http://kanca/` through the proxy, download `kanca-ca.crt`, double-click it → **Install Certificate** → **Current User** → **Trusted Root Certification Authorities**.
             - **Linux and Firefox**: follow the [installation guide](https://github.com/gorkemguler/Kanca#3-trust-the-kanca-certificate-your-own-browser-only).
 
-            **Optional: let Claude help.** Set a target scope, open the **AI Assistant** tab, turn on AI access and connect Claude Code (copy the command) or Claude Desktop (**Add to Claude Desktop**). See [AI assistant](https://github.com/gorkemguler/Kanca#ai-assistant-mcp).
+            **Scan a site.** Add it under **CA / Settings → Targets**, browse it through Kanca, then click **Scan site** in the Site Map.
+
+            **Optional: let Claude help.** With your site added as a target, open the **AI Assistant** tab, turn on AI access and connect Claude Code (copy the command) or Claude Desktop (**Add to Claude Desktop**). See [AI assistant](https://github.com/gorkemguler/Kanca#ai-assistant-mcp).
 
             Remove the certificate when you're done testing. Authorised testing only.

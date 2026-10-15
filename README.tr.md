@@ -130,8 +130,8 @@ ayrı bir profille açar.
 
 Kanca, kuruluysa Chrome'u tercih eder. Tarayıcının kendi güncelleme ve senkron
 trafiği kapatılır, ancak Edge yine de Microsoft servislerine birkaç istek
-gönderir; bunları geçmişten uzak tutmak için **Target scope** (CA / Settings)
-ayarlayın.
+gönderir; bunları geçmişten uzak tutmak için sitenizi **CA / Settings → Targets**
+altına ekleyip *Only record traffic to targets* seçeneğini işaretleyin.
 
 CLI'da `go run ./cmd/kanca -browser` aynı işi yapar.
 
@@ -180,9 +180,9 @@ yakaladığınız trafiği okur, zafiyet arar, şüphelerini kendi istekleriyle 
 doğruladıklarını **Findings** sekmesine kaydeder. Kanca ile
 [Model Context Protocol](https://modelcontextprotocol.io) üzerinden konuşur.
 
-**Açmak için:** CA / Settings altında bir **Target scope** (hedef kapsamı)
-belirleyin, **AI Assistant** sekmesini açın ve **Allow AI assistants to use
-Kanca** kutusunu işaretleyin. Ardından Claude'u bağlayın:
+**Açmak için:** siteyi **CA / Settings → Targets** altına ekleyin, **AI
+Assistant** sekmesini açın ve **Allow AI assistants to use Kanca** kutusunu
+işaretleyin. Ardından Claude'u bağlayın:
 
 - **Claude Code**: **Copy command** düğmesine basın ve komutu terminalde bir kez
   çalıştırın. Şuna benzer:
@@ -205,7 +205,7 @@ açıkları için incele, şüphelendiğin her şeyi doğrula."*
 | `list_flows`, `get_flow` | Yakalanan istekleri listeler ve filtreler; bir isteği ve (çözülmüş) yanıtını okur. |
 | `get_sitemap`, `get_scope` | Hedefin yapısını ve neyi test etmeye izinli olduğunu görür. |
 | `list_findings`, `add_finding` | Kanca'nın bulgularını okur, kanıtıyla yeni bulgu kaydeder. |
-| `send_request` | Kapsamdaki bir host'a ham istek gönderir; istek Proxy History'ye kaydedilir. |
+| `send_request` | Hedeflerinizden birine ham istek gönderir; istek Proxy History'ye kaydedilir. |
 | `active_scan` | Yakalanmış bir istek üzerinde Kanca'nın aktif tarayıcısını çalıştırır. |
 
 Güvenlik önlemleri:
@@ -214,8 +214,8 @@ Güvenlik önlemleri:
   bir token ister (`~/.kanca/mcp.json` içinde, yalnızca sizin okuyabileceğiniz
   şekilde saklanır) ve web sayfalarından gelen istekleri reddeder. **New token**
   bağlı tüm istemcilerin erişimini keser.
-- **Sadece kapsam içi.** Claude yalnızca Target scope'taki host'lara istek
-  gönderebilir ve tarama yapabilir; kapsam yoksa sadece okuyabilir. **Read only**
+- **Sadece hedefler.** Claude yakalanan her şeyi okuyabilir, ama yalnızca
+  hedeflerinize istek gönderip tarama yapabilir; hedef yoksa sadece okur. **Read only**
   modu göndermeyi tamamen kapatır.
 - **Bütçeli.** Oturum başına en fazla 500 istek (aktif tarama istekleri dahil).
   AI erişimini kapatıp açmak yeni bir oturum başlatır.
@@ -242,16 +242,17 @@ Arayüz olmadan, `kanca -scope shop.example -mcp` aynı uç noktayı
 | **Interception kuyruğu** | İstekleri (isteğe bağlı olarak yanıtları da) duraklatın, ham baytları düzenleyin, ardından iletin veya düşürün. |
 | **Repeater** | Herhangi bir isteği alın, özgürce değiştirin ve istediğiniz kadar tekrar gönderin — her sekme kendi gönderim geçmişini tutar ve satır bazlı diff, bir yanıtı bir önceki gönderimle karşılaştırır. |
 | **Intruder / fuzzer** | Dört saldırı tipiyle (sniper, battering ram, pitchfork, cluster bomb) otomatik payload enjeksiyonu, eşzamanlılık kontrolü ve grep-eşleşme vurgulama. Payload setleri bir listeden veya üretilen sayısal bir aralıktan gelir; her set için işlemciler (URL/base64 encode, büyük/küçük harf, MD5/SHA-1/SHA-256) uygulanabilir. |
-| **Hedef kapsamı (scope)** | Kaydı seçilen host'larla sınırlandırın (tam eşleşme, üst alan adı veya `*.` joker karakter); kapsam dışı trafik yine proxy'lenir ama kaydedilmez. |
-| **Okunabilir gövdeler** | `gzip`, `deflate` ve `brotli` yanıtları görüntüleme için şeffaf biçimde çözülür; proxy ise değiştirilmemiş baytları iletmeye devam eder. |
+| **Hedefler (Targets)** | Test etmeye izinli olduğunuz host'lar (tam eşleşme, üst alan adı veya `*.` joker karakter; adres yapıştırmak da olur). Aktif tarama, site taraması ve AI asistanı bunların dışına dokunmaz; *Only record traffic to targets* seçilmedikçe her site yine kaydedilir. |
+| **Okunabilir gövdeler** | Tarayıcılar Kanca'nın çözemediği `br` ve `zstd` sıkıştırmalarını ister; Kanca sunuculardan yalnızca `gzip` ve `deflate` ister ve bunları görüntüleme, arama, Intruder grep ve tarama için çözer. |
 | **Site haritası** | Yakalanan trafik, düz bir günlük yerine host bazlı bir URL yolu ağacı olarak sunulur; böylece hedefin yapısını görebilirsiniz. |
 | **Match & replace** | Hattın üzerinde uygulanan regex değişimleri — giden isteklerin ve gelen yanıtların istek satırını, bir header'ı veya gövdesini yeniden yazın (Content-Length doğru tutulur). |
 | **Gövde arama** | Sadece method/host/path değil, istek/yanıt gövdelerinde de geçmişi filtreleyin. |
 | **Pasif tarayıcı** | Gözlemlenen trafikten güvenlik sorunlarını işaretler (eksik CSP/HSTS/X-Content-Type-Options, güvensiz cookie'ler, gevşek CORS, sürüm ifşası) — ek bir istek göndermeden. |
-| **Aktif tarayıcı** | Talep üzerine, tek bir isteğin insertion point'lerini — query, form gövdesi ve JSON gövdesi parametreleri — yansıyan girdi/XSS, hataya dayalı SQL enjeksiyonu, path traversal, open redirect, template enjeksiyonu (SSTI) ve CRLF/header enjeksiyonu için dener; yalnızca kapsam içindeki host'larla sınırlı. Opt-in bir **agresif** mod, boolean ve time-based SQLi ile time-based komut enjeksiyonu kontrollerini ekler (bunlar hedefi gözlemlenebilir şekilde çalıştırır). Sadece tespit amaçlıdır: her kontrol bir baseline ile karşılaştırma yapar ve elle doğrulanacak bir ipucu işaretler — asla istismar (exploitation) girişiminde bulunmaz. |
+| **Site taraması** | Site Map'te **Scan site**, bir hedefte yakalanan parametreli tüm istekleri tek tek aktif tarayıcıdan geçirir ve ilerlemeyi canlı gösterir. Formlar ve durumu değiştiren diğer istekler, her prob onları yeniden gönderdiği için yalnızca siz işaretlerseniz dahil edilir. |
+| **Aktif tarayıcı** | Talep üzerine, tek bir isteğin insertion point'lerini — query, form gövdesi ve JSON gövdesi parametreleri — yansıyan girdi/XSS, hataya dayalı SQL enjeksiyonu, path traversal, open redirect, template enjeksiyonu (SSTI) ve CRLF/header enjeksiyonu için dener; yalnızca hedeflerinizle sınırlı. Opt-in bir **agresif** mod, boolean ve time-based SQLi ile time-based komut enjeksiyonu kontrollerini ekler (bunlar hedefi gözlemlenebilir şekilde çalıştırır). Sadece tespit amaçlıdır: her kontrol bir baseline ile karşılaştırma yapar ve elle doğrulanacak bir ipucu işaretler — asla istismar (exploitation) girişiminde bulunmaz. |
 | **Kaydet / içe-dışa aktar** | Tam bir oturumu (flow'lar, kurallar, bulgular, kapsam) bir proje dosyasına kaydedip sonra tekrar açın; yakalanan trafiği HAR 1.2 olarak dışa aktarın ve başka araçlardan HAR yakalamalarını içe aktarın. |
 | **WebSocket desteği** | `ws://` ve `wss://` upgrade'leri şeffaf biçimde köprülenir (normal HTTP için hop-by-hop olarak `Upgrade`/`Connection` header'ları temizlendiğinden eskiden bu bağlantılar bozulurdu) — canlı, bağlantı başına frame kaydıyla birlikte; sıfırdan yazılmış RFC 6455 framing, harici bağımlılık yok. |
-| **AI asistanı (MCP)** | [Claude](#ai-asistanı-mcp)'un yakalanan trafiği okumasını, kapsamdaki host'lara istek gönderip tarama yapmasını ve bulgu raporlamasını sağlar; gizli bilgiler maskelenir, her adım görünür. |
+| **AI asistanı (MCP)** | [Claude](#ai-asistanı-mcp)'un yakalanan trafiği okumasını, hedeflerinize istek gönderip tarama yapmasını ve bulgu raporlamasını sağlar; gizli bilgiler maskelenir, her adım görünür. |
 | **Tarayıcı kurulumu** | [Open browser](#tek-tıkla-tarayıcı), CA kurmadan HTTPS'in çalıştığı, önceden ayarlanmış izole bir Chrome/Edge/Brave profili açar; [tarayıcı eklentisi](#tarayıcı-eklentisi) kendi tarayıcınızı Kanca'ya yönlendirir; proxy'nin kendisinin sunduğu (asla dışarı iletilmeyen ya da kaydedilmeyen) `http://kanca/` sayfası root CA'yı indirmenizi sağlar. |
 
 ## Mimari
@@ -270,9 +271,9 @@ kanca/                      çekirdek modül — saf Go standart kütüphanesi, 
 │   ├── intruder/           payload şablonlama + eşzamanlı saldırı motoru
 │   ├── rules/              match-and-replace (hat üzerinde regex yeniden yazımı)
 │   ├── scanner/            yakalanan flow'lar üzerinde pasif güvenlik kontrolleri
-│   ├── activescan/         yıkıcı olmayan aktif problar (opt-in, kapsamla sınırlı)
+│   ├── activescan/         yıkıcı olmayan aktif problar ve site taraması (hedeflerle sınırlı)
 │   ├── sitemap/            yakalanan flow'lardan oluşturulan host bazlı URL yolu ağacı
-│   ├── scope/              hedef kapsamı host eşleştirme
+│   ├── scope/              hedef host eşleştirme
 │   ├── mcp/                AI asistanları için MCP sunucusu (+ stdio köprüsü)
 │   ├── diff/               satır bazlı metin diff'i (repeater yanıt karşılaştırması)
 │   ├── har/                HAR 1.2 dışa/içe aktarım

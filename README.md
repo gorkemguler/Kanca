@@ -125,7 +125,8 @@ Chrome, Edge or Brave in a separate profile that is already routed through it.
 
 Kanca prefers Chrome when it's installed. The browser's own update and sync
 traffic is switched off, but Edge still sends a few requests to Microsoft
-services; set a **Target scope** (CA / Settings) to keep them out of the history.
+services; add your site under **CA / Settings → Targets** and tick *Only record
+traffic to targets* to keep them out of the history.
 
 From the CLI, `go run ./cmd/kanca -browser` does the same.
 
@@ -173,7 +174,7 @@ captured, looks for vulnerabilities, checks its hunches with its own requests an
 records what it confirms in **Findings**. It talks to Kanca over the
 [Model Context Protocol](https://modelcontextprotocol.io).
 
-**Turn it on:** set a **Target scope** under CA / Settings, open the **AI
+**Turn it on:** add the site under **CA / Settings → Targets**, open the **AI
 Assistant** tab and tick **Allow AI assistants to use Kanca**. Then connect Claude:
 
 - **Claude Code**: click **Copy command** and run it once in a terminal. It looks like
@@ -195,7 +196,7 @@ access control, and verify anything you suspect."*
 | `list_flows`, `get_flow` | List and filter captured requests; read a request and its (decoded) response. |
 | `get_sitemap`, `get_scope` | See the target's structure and what it is allowed to test. |
 | `list_findings`, `add_finding` | Read Kanca's findings and record new ones with evidence. |
-| `send_request` | Send a raw request to an in-scope host; it is recorded in Proxy History. |
+| `send_request` | Send a raw request to one of your targets; it is recorded in Proxy History. |
 | `active_scan` | Run Kanca's [active scanner](#features-mvp) on a captured request. |
 
 Guard rails:
@@ -203,9 +204,9 @@ Guard rails:
 - **Local only.** The endpoint listens on `127.0.0.1:8765`, needs a random
   256-bit token (kept in `~/.kanca/mcp.json`, readable only by you) and refuses
   requests from web pages. **New token** cuts off every connected client.
-- **In scope only.** Claude can send requests and run scans only against hosts
-  in your Target scope; without a scope it can only read. **Read only** mode
-  takes sending away altogether.
+- **Targets only.** Claude can read everything Kanca captured, but send requests
+  and run scans only against your targets; with no targets it can only read.
+  **Read only** mode takes sending away altogether.
 - **Budgeted.** At most 500 requests per session, active-scan probes included.
   Turning AI access off and on starts a new session.
 - **Secrets masked by default.** Cookies, tokens, passwords, API keys and JWTs
@@ -230,16 +231,17 @@ the [CLI](#quick-start--headless-cli) and prints the commands to connect.
 | **Interception queue** | Pause requests (and optionally responses), edit the raw bytes, then forward or drop them. |
 | **Repeater** | Take any request, tweak it freely, and resend it as many times as you like — each tab keeps its own send history, and a line diff compares a response with the previous send. |
 | **Intruder / fuzzer** | Automated payload injection with four attack types (sniper, battering ram, pitchfork, cluster bomb), concurrency control and grep-match highlighting. Payload sets come from a list or a generated numeric range, with per-set processors (URL/base64 encode, upper/lower, MD5/SHA-1/SHA-256). |
-| **Target scope** | Restrict recording to chosen hosts (exact, parent-domain or `*.` wildcard); out-of-scope traffic is still proxied but not logged. |
-| **Readable bodies** | `gzip`, `deflate` and `brotli` responses are transparently decoded for display, while the proxy forwards the untouched bytes. |
+| **Targets** | The hosts you may test (exact, parent-domain or `*.` wildcard; pasting a URL works). Active scans, site scans and the AI assistant refuse anything else, while every site is still recorded unless you choose *Only record traffic to targets*. |
+| **Readable bodies** | Browsers ask for `br` and `zstd`, which Kanca can't decode, so it asks servers only for `gzip` and `deflate` and decodes those for display, search, Intruder grep and scanning. |
 | **Site map** | Captured traffic arranged as a per-host tree of URL paths, so you can see a target's structure rather than a flat log. |
 | **Match & replace** | Regex substitutions applied on the wire — rewrite the request line, a header, or the body of outbound requests and inbound responses (Content-Length is kept correct). |
 | **Body search** | Filter the history across request/response bodies, not just method/host/path. |
 | **Passive scanner** | Flags security issues from observed traffic (missing CSP/HSTS/X-Content-Type-Options, insecure cookies, permissive CORS, version disclosure) without sending any extra requests. |
-| **Active scanner** | On demand, probes one request's insertion points — query, form-body and JSON-body parameters — for reflected input/XSS, error-based SQL injection, path traversal, open redirect, template injection (SSTI) and CRLF/header injection, restricted to in-scope hosts. An opt-in **aggressive** mode adds boolean- and time-based SQLi and time-based command-injection checks (these make the target do observable work). Detection-only: every check compares against a baseline and flags a lead to verify by hand — it never attempts exploitation. |
+| **Site scan** | In the Site Map, **Scan site** runs the active scanner over every captured request with parameters on a target, one at a time, with live progress. Forms and other state-changing requests are only included when you tick them, since each probe submits them again. |
+| **Active scanner** | On demand, probes one request's insertion points — query, form-body and JSON-body parameters — for reflected input/XSS, error-based SQL injection, path traversal, open redirect, template injection (SSTI) and CRLF/header injection, restricted to your targets. An opt-in **aggressive** mode adds boolean- and time-based SQLi and time-based command-injection checks (these make the target do observable work). Detection-only: every check compares against a baseline and flags a lead to verify by hand — it never attempts exploitation. |
 | **Save / import / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2 and import HAR captures from other tools. |
 | **WebSocket support** | `ws://` and `wss://` upgrades are bridged transparently (they used to break, since `Upgrade`/`Connection` are stripped as hop-by-hop for ordinary HTTP) with a live, per-connection frame log — hand-rolled RFC 6455 framing, no dependency. |
-| **AI assistant (MCP)** | Lets [Claude](#ai-assistant-mcp) read captured traffic, send requests and run scans against in-scope hosts, and report findings, with secrets masked and every step shown. |
+| **AI assistant (MCP)** | Lets [Claude](#ai-assistant-mcp) read captured traffic, send requests and run scans against your targets, and report findings, with secrets masked and every step shown. |
 | **Browser setup** | [Open browser](#one-click-browser) launches a pre-configured, isolated Chrome/Edge/Brave profile where HTTPS works without installing the CA; a [browser extension](#browser-extension) routes your own browser; and `http://kanca/` — served by the proxy itself, never forwarded or recorded — offers the root CA for download. |
 
 ## Architecture
