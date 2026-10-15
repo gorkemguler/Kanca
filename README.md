@@ -72,9 +72,12 @@ To read HTTPS traffic, your browser has to trust Kanca's root certificate. Get
 the file by opening `http://kanca/` through the proxy, or with **CA / Settings →
 Export to file…**; Kanca also keeps it at `~/.kanca/ca-cert.pem`.
 
-- **macOS**: in the app, click **CA / Settings → Install on this Mac**. macOS asks
-  for your password or Touch ID, and the status turns green once Safari, Chrome
-  and Edge trust the certificate. Or in Terminal:
+- **macOS**: click **Trust certificate** in the banner Kanca shows while HTTPS
+  isn't trusted (or **CA / Settings → Install on this Mac**). macOS asks for your
+  password or Touch ID, and the banner disappears once Safari, Chrome and Edge
+  trust the certificate. Double-clicking `kanca-ca.crt` is not enough on its
+  own: it only adds the certificate, which you'd then have to set to **Always
+  Trust** in Keychain Access. Or in Terminal:
 
   ```bash
   security add-trusted-cert -r trustRoot -p ssl -k ~/Library/Keychains/login.keychain-db ~/.kanca/ca-cert.pem
@@ -100,7 +103,9 @@ Export to file…**; Kanca also keeps it at `~/.kanca/ca-cert.pem`.
   Certificates → View Certificates → Authorities → Import**, then tick *Trust this
   CA to identify websites*.
 
-Restart the browser if it was already open. **Remove the certificate when you're
+Restart the browser if it was already open. To check, open `http://kanca/`
+through the proxy: it says whether this browser trusts the certificate, and so
+does the [browser extension](#browser-extension). **Remove the certificate when you're
 done testing**: on macOS click **CA / Settings → Remove from this Mac**; on
 Windows run `certutil -user -delstore Root "Kanca Root CA"`; elsewhere delete
 *Kanca Root CA* where you imported it.
@@ -135,7 +140,8 @@ for your browser in one click, so you never have to dig through proxy settings:
   (`127.0.0.1:8080` by default, or any host/port you set). The toolbar icon turns
   orange with an **ON** badge while it's active; <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> toggles it.
 - **Live status** — tells you whether traffic is really flowing through Kanca,
-  or that Kanca isn't running yet.
+  or that Kanca isn't running yet, and whether this browser trusts Kanca's
+  certificate (so HTTPS sites won't show warnings).
 - **CA certificate** — *Install CA certificate…* opens `http://kanca/`, a page
   Kanca serves itself, to download the root certificate with per-OS steps.
 - **Local targets** — optionally capture `localhost`, `127.0.0.1` and `*.localhost`,

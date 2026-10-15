@@ -75,9 +75,12 @@ güvenmesi gerekir. Dosyayı proxy üzerinden `http://kanca/` adresini açarak y
 **CA / Settings → Export to file…** ile alın; Kanca ayrıca `~/.kanca/ca-cert.pem`
 konumunda saklar.
 
-- **macOS**: uygulamada **CA / Settings → Install on this Mac**'e tıklayın. macOS
-  şifrenizi veya Touch ID'nizi ister; Safari, Chrome ve Edge sertifikaya
-  güvendiğinde durum yeşile döner. Ya da Terminal'de:
+- **macOS**: HTTPS'e henüz güvenilmiyorken Kanca'nın üstte gösterdiği şeritteki
+  **Trust certificate** düğmesine tıklayın (ya da **CA / Settings → Install on
+  this Mac**). macOS şifrenizi veya Touch ID'nizi ister; Safari, Chrome ve Edge
+  sertifikaya güvendiğinde şerit kaybolur. `kanca-ca.crt` dosyasına çift
+  tıklamak tek başına yetmez: sertifikayı yalnızca ekler, ardından Anahtar
+  Zinciri Erişimi'nde **Her Zaman Güven** yapmanız gerekir. Ya da Terminal'de:
 
   ```bash
   security add-trusted-cert -r trustRoot -p ssl -k ~/Library/Keychains/login.keychain-db ~/.kanca/ca-cert.pem
@@ -103,7 +106,10 @@ konumunda saklar.
   Güvenlik → Sertifikalar → Sertifikaları Göster → Yetkililer → İçe aktar**, ardından
   *Web sitelerini tanımlamak için bu CA'ya güven* kutusunu işaretleyin.
 
-Tarayıcı açıksa yeniden başlatın. **Test bitince sertifikayı kaldırın**: macOS'ta
+Tarayıcı açıksa yeniden başlatın. Kontrol etmek için proxy üzerinden
+`http://kanca/` adresini açın: sayfa bu tarayıcının sertifikaya güvenip
+güvenmediğini söyler; [tarayıcı eklentisi](#tarayıcı-eklentisi) de gösterir.
+**Test bitince sertifikayı kaldırın**: macOS'ta
 **CA / Settings → Remove from this Mac**; Windows'ta
 `certutil -user -delstore Root "Kanca Root CA"`; diğerlerinde içe aktardığınız
 yerden *Kanca Root CA*'yı silin.
@@ -140,7 +146,8 @@ tıkla açıp kapatır; proxy ayarlarıyla uğraşmanız gerekmez:
   (varsayılan `127.0.0.1:8080`, ya da sizin belirlediğiniz host/port). Aktifken
   toolbar ikonu turuncu olur ve **ON** rozeti çıkar; <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> ile açılıp kapanır.
 - **Canlı durum** — trafiğin gerçekten Kanca'dan geçip geçmediğini ya da Kanca'nın
-  henüz çalışmadığını gösterir.
+  henüz çalışmadığını, ayrıca bu tarayıcının Kanca sertifikasına güvenip
+  güvenmediğini (yani HTTPS sitelerde uyarı çıkıp çıkmayacağını) gösterir.
 - **CA sertifikası** — *Install CA certificate…* butonu, Kanca'nın kendisinin sunduğu
   `http://kanca/` sayfasını açar; root sertifikayı işletim sistemine göre kurulum
   adımlarıyla birlikte indirirsiniz.
