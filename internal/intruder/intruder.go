@@ -207,7 +207,7 @@ func (a *Attack) dispatch(ctx context.Context, j job) Result {
 		Error:      f.Error,
 	}
 	if a.grep != nil && f.Error == "" {
-		res.Matched = a.grep.Match(f.Response.Body)
+		res.Matched = a.grep.Match(f.Response.DecodedBody())
 	}
 	return res
 }

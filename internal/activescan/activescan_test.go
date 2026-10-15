@@ -1,6 +1,7 @@
 package activescan
 
 import (
+	"compress/gzip"
 	"context"
 	"fmt"
 	"net/http"
@@ -125,4 +126,29 @@ func TestBeforeSendCountsAndLimitsRequests(t *testing.T) {
 	}); err == nil {
 		t.Fatal("a scan with no budget should fail before sending anything")
 	}
+}
+
+func TestActiveScanReadsCompressedResponses(t *testing.T) {
+	// Real sites compress; findings must not depend on that.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Encoding", "gzip")
+		zw := gzip.NewWriter(w)
+		// A page long enough that gzip really compresses it (a tiny one is
+		// stored verbatim, which would hide the bug this test guards against).
+		fmt.Fprintf(zw, "<html>%s<p>results for %s</p></html>", strings.Repeat("<li>catalogue entry</li>", 200), r.URL.Query().Get("q"))
+		zw.Close()
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	raw := []byte("GET /?q=hello HTTP/1.1\r\nHost: " + u.Host + "\r\nAccept-Encoding: gzip, deflate, br, zstd\r\n\r\n")
+	findings, err := Run(context.Background(), Config{Scheme: "http", Host: u.Host, Raw: raw})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range findings {
+		if strings.Contains(f.Title, "Reflected input in q") {
+			return
+		}
+	}
+	t.Fatalf("reflection behind gzip not found: %+v", findings)
 }

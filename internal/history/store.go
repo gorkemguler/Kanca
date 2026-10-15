@@ -157,7 +157,7 @@ func (f Filter) matches(e *proxy.Flow) bool {
 			return true
 		}
 		if f.SearchBodies {
-			if bytesContainsFold(e.Request.Body, needle) || bytesContainsFold(e.Response.Body, needle) {
+			if bytesContainsFold(e.Request.Body, needle) || bytesContainsFold(e.Response.DecodedBody(), needle) {
 				return true
 			}
 		}

@@ -55,6 +55,9 @@ type Message struct {
 // whether the payload is printable should inspect the content type first.
 func (m Message) BodyString() string { return string(m.Body) }
 
+// DecodedBodyString is DecodedBody as a string.
+func (m Message) DecodedBodyString() string { return string(m.DecodedBody()) }
+
 var flowSeq int64
 
 // nextFlowID hands out process-unique, monotonically increasing flow IDs.

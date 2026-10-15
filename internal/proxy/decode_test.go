@@ -51,3 +51,28 @@ func TestDecodeBodyPassthrough(t *testing.T) {
 		t.Fatalf("br should pass through: enc=%q", enc)
 	}
 }
+
+func TestLimitAcceptEncodingKeepsOnlyDecodableCodings(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"gzip, deflate, br, zstd", "gzip, deflate"},
+		{"br", "identity"},
+		{"gzip;q=1.0, *;q=0.5", "gzip;q=1.0"},
+		{"zstd, identity", "identity"},
+	}
+	for _, c := range cases {
+		h := http.Header{}
+		h.Set("Accept-Encoding", c.in)
+		if !proxy.LimitAcceptEncoding(h) || h.Get("Accept-Encoding") != c.want {
+			t.Errorf("%q -> %q, want %q", c.in, h.Get("Accept-Encoding"), c.want)
+		}
+	}
+	for _, in := range []string{"", "gzip, deflate"} {
+		h := http.Header{}
+		if in != "" {
+			h.Set("Accept-Encoding", in)
+		}
+		if proxy.LimitAcceptEncoding(h) || h.Get("Accept-Encoding") != in {
+			t.Errorf("%q should be left alone, got %q", in, h.Get("Accept-Encoding"))
+		}
+	}
+}

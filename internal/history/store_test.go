@@ -1,7 +1,10 @@
 package history
 
 import (
+	"bytes"
+	"compress/gzip"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gorkemguler/kanca/internal/proxy"
@@ -103,5 +106,20 @@ func TestBodySearch(t *testing.T) {
 	// Response body also matches.
 	if got := s.List(Filter{Text: "welcome", SearchBodies: true}); len(got) != 1 || got[0].ID != 1 {
 		t.Fatalf("body search (response) = %+v", got)
+	}
+}
+
+func TestBodySearchLooksInsideCompressedResponses(t *testing.T) {
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	zw.Write([]byte(strings.Repeat("<li>item</li>", 100) + "api_key=hidden-in-gzip"))
+	zw.Close()
+	s := New(0)
+	f := mkFlow(1, "GET", "app.example.com", "/", 200)
+	f.Response.Headers.Set("Content-Encoding", "gzip")
+	f.Response.Body = buf.Bytes()
+	s.Add(f)
+	if got := s.List(Filter{Text: "hidden-in-gzip", SearchBodies: true}); len(got) != 1 {
+		t.Fatalf("search should match text inside a gzip response, got %d", len(got))
 	}
 }

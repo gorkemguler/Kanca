@@ -88,6 +88,9 @@ func (s *Sender) Send(ctx context.Context, raw []byte, scheme, host string) *Flo
 		return f
 	}
 	reqBody, _ := captureBody(&req.Body)
+	if LimitAcceptEncoding(req.Header) {
+		raw = requestToRaw(req, reqBody)
+	}
 	req = req.WithContext(ctx)
 	req.Body = io.NopCloser(bytesReader(reqBody))
 	req.ContentLength = int64(len(reqBody))

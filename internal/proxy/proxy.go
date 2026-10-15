@@ -424,6 +424,7 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 	recording := p.hostInScope(host)
 
 	reqBody, _ := captureBody(&req.Body)
+	LimitAcceptEncoding(req.Header)
 	rawReq := requestToRaw(req, reqBody)
 
 	// Match-and-replace on the outbound request.

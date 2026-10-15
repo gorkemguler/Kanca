@@ -1,6 +1,7 @@
 package intruder
 
 import (
+	"compress/gzip"
 	"context"
 	"fmt"
 	"net/http"
@@ -106,5 +107,35 @@ func TestAttackRunsAgainstServer(t *testing.T) {
 	}
 	if got := hits.Load(); got != 3 {
 		t.Fatalf("backend hits = %d, want 3", got)
+	}
+}
+
+func TestGrepMatchLooksInsideCompressedResponses(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Encoding", "gzip")
+		zw := gzip.NewWriter(w)
+		body := strings.Repeat("<li>row</li>", 100) + "denied"
+		if r.URL.Query().Get("id") == "admin" {
+			body = strings.Repeat("<li>row</li>", 100) + "SECRET-FLAG"
+		}
+		fmt.Fprint(zw, body)
+		zw.Close()
+	}))
+	defer backend.Close()
+	u, _ := url.Parse(backend.URL)
+	tmpl, _ := Parse([]byte("GET /?id=§guest§ HTTP/1.1\r\nHost: "+u.Host+"\r\nAccept-Encoding: gzip, br\r\n\r\n"), DefaultMarker)
+	a, err := NewAttack(tmpl, Config{Type: Sniper, Scheme: "http", Host: u.Host,
+		Payloads: [][]string{{"user", "admin"}}, GrepMatch: "SECRET-FLAG", Concurrency: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var matched []string
+	for res := range a.Run(context.Background()) {
+		if res.Matched {
+			matched = append(matched, res.Payloads[0])
+		}
+	}
+	if len(matched) != 1 || matched[0] != "admin" {
+		t.Fatalf("grep should match inside gzip responses, matched %v", matched)
 	}
 }

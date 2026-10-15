@@ -123,7 +123,7 @@ func Run(ctx context.Context, cfg Config) ([]scanner.Finding, error) {
 		sender:   sender,
 		cfg:      cfg,
 		baseURL:  cfg.Scheme + "://" + cfg.Host + baseReq.URL.RequestURI(),
-		baseBody: baseFlow.Response.BodyString(),
+		baseBody: baseFlow.Response.DecodedBodyString(),
 		baseDur:  baseFlow.Duration,
 	}
 	r.baseLower = strings.ToLower(r.baseBody)
@@ -207,7 +207,7 @@ func (r *runner) checkReflection(ip insertionPoint) {
 	if f == nil {
 		return
 	}
-	body := f.Response.BodyString()
+	body := f.Response.DecodedBodyString()
 	if !strings.Contains(body, reflectionToken) {
 		return
 	}
@@ -224,7 +224,7 @@ func (r *runner) checkSQLError(ip insertionPoint) {
 	if f == nil {
 		return
 	}
-	lower := strings.ToLower(f.Response.BodyString())
+	lower := strings.ToLower(f.Response.DecodedBodyString())
 	for _, sig := range sqlErrorSignatures {
 		if strings.Contains(lower, sig) && !strings.Contains(r.baseLower, sig) {
 			r.add(scanner.High, "Possible SQL injection in "+ip.label,
@@ -243,7 +243,7 @@ func (r *runner) checkTraversal(ip insertionPoint) {
 		if f == nil {
 			continue
 		}
-		lower := strings.ToLower(f.Response.BodyString())
+		lower := strings.ToLower(f.Response.DecodedBodyString())
 		for _, sig := range lfiSignatures {
 			if strings.Contains(lower, sig) && !strings.Contains(r.baseLower, sig) {
 				r.add(scanner.High, "Possible path traversal in "+ip.label,
@@ -276,7 +276,7 @@ func (r *runner) checkSSTI(ip insertionPoint) {
 		if f == nil {
 			continue
 		}
-		body := f.Response.BodyString()
+		body := f.Response.DecodedBodyString()
 		// The product must appear while the literal expression does not: that
 		// distinguishes evaluation from mere reflection.
 		if strings.Contains(body, sstiResult) && !strings.Contains(r.baseLower, sstiResult) && !strings.Contains(body, probe) {
@@ -308,7 +308,7 @@ func (r *runner) checkBooleanSQL(ip insertionPoint) {
 	if tf == nil || ff == nil {
 		return
 	}
-	tb, fb := tf.Response.BodyString(), ff.Response.BodyString()
+	tb, fb := tf.Response.DecodedBodyString(), ff.Response.DecodedBodyString()
 	// A boolean-injectable parameter makes the always-true response resemble the
 	// baseline while the always-false response differs materially.
 	if similarLen(tb, r.baseBody) && !similarLen(fb, r.baseBody) && !similarLen(tb, fb) {
