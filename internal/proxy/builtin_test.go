@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -68,6 +69,61 @@ func TestBuiltinPageThroughProxy(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "routed through Kanca") {
 		t.Fatalf("status %d, body:\n%s", resp.StatusCode, body)
+	}
+}
+
+func TestBuiltinOverHTTPSOnlyAnswersBrowsersThatTrustTheCA(t *testing.T) {
+	p, ca := newProxy(t)
+	var flows atomic.Int32
+	p.OnFlow(func(*proxy.Flow) { flows.Add(1) })
+
+	// A client that trusts Kanca's root reaches https://kanca/ through the proxy.
+	req, _ := http.NewRequest(http.MethodGet, "https://kanca/status", nil)
+	req.Header.Set("Origin", "http://kanca")
+	resp, err := clientThrough(t, p, ca).Do(req)
+	if err != nil {
+		t.Fatalf("trusting client: %v", err)
+	}
+	defer resp.Body.Close()
+	var st builtinStatus
+	if err := json.NewDecoder(resp.Body).Decode(&st); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !st.Kanca || !st.Proxied {
+		t.Fatalf("status = %+v, want kanca and proxied", st)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "http://kanca" {
+		t.Fatalf("Kanca's own page must be able to read the check; ACAO = %q", got)
+	}
+
+	// One that doesn't trust it fails the TLS handshake, which is the signal
+	// the extension and the status page show.
+	proxyURL, _ := url.Parse("http://" + p.Addr())
+	untrusting := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}}
+	if resp, err := untrusting.Get("https://kanca/status"); err == nil {
+		resp.Body.Close()
+		t.Fatal("a client that doesn't trust Kanca's CA should not get an answer over HTTPS")
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	if n := flows.Load(); n != 0 {
+		t.Fatalf("built-in requests were recorded as %d flow(s)", n)
+	}
+}
+
+func TestBuiltinPageChecksHTTPSTrust(t *testing.T) {
+	p, ca := newProxy(t)
+	resp, err := clientThrough(t, p, ca).Get("http://kanca/")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), `fetch("https://kanca/status"`) {
+		t.Fatal("the status page should check whether the browser trusts the certificate")
+	}
+	if resp.Header.Get("Access-Control-Allow-Origin") != "" {
+		t.Fatal("only /status answers cross-origin checks")
 	}
 }
 

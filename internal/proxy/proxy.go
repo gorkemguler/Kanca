@@ -383,6 +383,13 @@ func (p *Proxy) serveTunnel(conn net.Conn, authority, scheme string) {
 			req.Host = authority
 		}
 
+		if isBuiltinAuthority(authority) {
+			if err := p.serveBuiltinTunnel(conn, req); err != nil || req.Close {
+				return
+			}
+			continue
+		}
+
 		if isWebSocketUpgrade(req.Header) {
 			// Bridging takes over the connection for its remaining lifetime;
 			// once it returns there is nothing left to read further requests
