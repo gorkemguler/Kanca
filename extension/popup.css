@@ -94,6 +94,10 @@ h1 {
   font-weight: 600;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .status {
   display: flex;
   align-items: flex-start;
@@ -143,6 +147,12 @@ button.secondary {
 }
 button.secondary:hover {
   border-color: var(--accent);
+}
+button.secondary.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #16181d;
+  font-weight: 600;
 }
 
 details {

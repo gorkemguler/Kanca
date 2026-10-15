@@ -1,5 +1,5 @@
 // Browser-facing operations (chrome.* APIs) shared by the popup and background.
-import { buildProxyValue, kancaOrigin, normalizeSettings } from "./proxy-config.js";
+import { BUILTIN_HTTPS_ORIGIN, buildProxyValue, kancaOrigin, normalizeSettings } from "./proxy-config.js";
 
 const ICONS = {
   on: { 16: "icons/on-16.png", 32: "icons/on-32.png" },
@@ -53,6 +53,21 @@ export async function probeStatus(s, timeoutMs = 1500) {
     return await resp.json();
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// probeHttps reports whether this browser completes a TLS request to Kanca's
+// own https://kanca/ page, i.e. whether it trusts Kanca's certificate.
+export async function probeHttps(timeoutMs = 2000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const resp = await fetch(`${BUILTIN_HTTPS_ORIGIN}/status`, { signal: ctrl.signal, cache: "no-store" });
+    return resp.ok;
+  } catch {
+    return false;
   } finally {
     clearTimeout(timer);
   }

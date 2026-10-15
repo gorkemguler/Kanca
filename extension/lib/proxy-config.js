@@ -11,6 +11,9 @@ export const DEFAULTS = Object.freeze({
 
 // The proxy answers http://kanca/ itself (status page, CA download).
 export const BUILTIN_ORIGIN = "http://kanca";
+// Kanca answers https://kanca/ itself, so a request there succeeds only when
+// the browser trusts Kanca's certificate.
+export const BUILTIN_HTTPS_ORIGIN = "https://kanca";
 
 export function normalizeSettings(raw) {
   const s = { ...DEFAULTS, ...(raw || {}) };
@@ -92,4 +95,18 @@ export function describeStatus(s, probe) {
     return { level: "idle", text: `Kanca is running on ${addr}. Switch on to route this browser through it.` };
   }
   return { level: "off", text: "Off — the browser connects directly." };
+}
+
+// describeTrust says whether HTTPS interception works in this browser, from a
+// probe of https://kanca/status (httpsOk). It only applies while the browser is
+// routed through a running Kanca; otherwise it returns null.
+export function describeTrust(s, probe, httpsOk) {
+  if (!s.enabled || !probe?.kanca || !probe.proxied) return null;
+  if (httpsOk) {
+    return { level: "ok", text: "HTTPS works: this browser trusts Kanca's certificate." };
+  }
+  return {
+    level: "err",
+    text: "HTTPS sites will show certificate warnings: this browser doesn't trust Kanca's certificate yet.",
+  };
 }

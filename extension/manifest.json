@@ -25,6 +25,7 @@
   "permissions": ["proxy", "storage"],
   "host_permissions": [
     "http://kanca/*",
+    "https://kanca/*",
     "http://127.0.0.1/*",
     "http://localhost/*"
   ],

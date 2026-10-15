@@ -1,5 +1,6 @@
 import {
   describeStatus,
+  describeTrust,
   kancaOrigin,
   parseBypass,
   validate,
@@ -8,6 +9,7 @@ import {
   applySettings,
   controlLevel,
   loadSettings,
+  probeHttps,
   probeStatus,
   saveSettings,
 } from "./lib/browser.js";
@@ -17,6 +19,8 @@ const el = {
   enabled: $("enabled"),
   status: $("status"),
   statusText: $("status-text"),
+  trust: $("trust"),
+  trustText: $("trust-text"),
   conflict: $("conflict"),
   openCert: $("open-cert"),
   settings: $("settings"),
@@ -54,6 +58,16 @@ async function refreshStatus() {
   const { level, text } = describeStatus(settings, probe);
   el.status.className = `status ${level}`;
   el.statusText.textContent = text;
+
+  const routed = settings.enabled && probe?.proxied;
+  const trust = describeTrust(settings, probe, routed && (await probeHttps()));
+  el.trust.hidden = !trust;
+  if (trust) {
+    el.trust.className = `status ${trust.level}`;
+    el.trustText.textContent = trust.text;
+  }
+  // Point at the fix while HTTPS isn't trusted.
+  el.openCert.classList.toggle("primary", trust?.level === "err");
 }
 
 async function refreshConflict() {

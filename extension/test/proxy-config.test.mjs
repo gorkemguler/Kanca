@@ -4,6 +4,7 @@ import {
   DEFAULTS,
   buildProxyValue,
   describeStatus,
+  describeTrust,
   kancaOrigin,
   normalizeSettings,
   parseBypass,
@@ -67,4 +68,15 @@ test("describeStatus covers connected, unreachable, idle and off", () => {
   assert.equal(describeStatus(on, { kanca: true, proxied: false }).level, "err");
   assert.equal(describeStatus(off, { kanca: true, proxied: false }).level, "idle");
   assert.equal(describeStatus(off, null).level, "off");
+});
+
+test("describeTrust reports HTTPS trust only while routed through Kanca", () => {
+  const on = normalizeSettings({ enabled: true });
+  const off = normalizeSettings({});
+  const routed = { kanca: true, proxied: true };
+  assert.equal(describeTrust(on, routed, true).level, "ok");
+  assert.equal(describeTrust(on, routed, false).level, "err");
+  assert.equal(describeTrust(on, null, false), null);
+  assert.equal(describeTrust(on, { kanca: true, proxied: false }, false), null);
+  assert.equal(describeTrust(off, { kanca: true, proxied: false }, false), null);
 });
