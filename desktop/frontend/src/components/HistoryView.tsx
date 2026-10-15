@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, on, Entry, FlowView } from "../lib/api";
+import { api, hostOf, isNotTarget, on, Entry, FlowView } from "../lib/api";
 import RawMessage from "./RawMessage";
 import { useCoalescedRefresh } from "../lib/coalesce";
 
@@ -72,6 +72,26 @@ export default function HistoryView({
   }, [focusFlow]);
 
   const view = useMemo(() => selected, [selected]);
+
+  // Only targets may be scanned; offer to add this request's host.
+  const activeScan = async (flow: FlowView, aggressive: boolean) => {
+    try {
+      await api.activeScan(flow.id, aggressive);
+    } catch (e) {
+      if (!isNotTarget(e)) {
+        alert("Active scan failed: " + ((e as any)?.message ?? e));
+        return;
+      }
+      const host = hostOf(flow.host);
+      if (!confirm(`${host} isn't one of your targets, and Kanca only scans targets.\n\nAdd ${host} as a target and scan? Only do this for sites you're allowed to test.`)) {
+        return;
+      }
+      await api.addTarget(host);
+      api
+        .activeScan(flow.id, aggressive)
+        .catch((err: any) => alert("Active scan failed: " + (err?.message ?? err)));
+    }
+  };
 
   return (
     <div className="split-v">
@@ -157,12 +177,8 @@ export default function HistoryView({
                 <button onClick={() => onSendToRepeater(view.id)}>→ Repeater</button>
                 <button onClick={() => onSendToIntruder(view)}>→ Intruder</button>
                 <button
-                  title="Run non-destructive active probes (reflection/XSS, SQLi error, path traversal, open redirect, SSTI, CRLF) against this request; in-scope hosts only. Results appear in Findings."
-                  onClick={() =>
-                    api
-                      .activeScan(view.id, false)
-                      .catch((e: any) => alert("Active scan failed: " + (e?.message ?? e)))
-                  }
+                  title="Run non-destructive active probes (reflection/XSS, SQLi error, path traversal, open redirect, SSTI, CRLF) against this request; targets only. Results appear in Findings."
+                  onClick={() => activeScan(view, false)}
                 >
                   Active scan
                 </button>
@@ -176,9 +192,7 @@ export default function HistoryView({
                       )
                     )
                       return;
-                    api
-                      .activeScan(view.id, true)
-                      .catch((e: any) => alert("Active scan failed: " + (e?.message ?? e)));
+                    activeScan(view, true);
                   }}
                 >
                   Active scan+

@@ -112,7 +112,7 @@ export default function AIView({ onStatus, onOpenSettings }: Props) {
     );
   }
 
-  const scopeHosts = scope?.enabled ? scope.hosts ?? [] : [];
+  const scopeHosts = scope?.hosts ?? [];
   const canTest = st.level === "readwrite";
 
   return (
@@ -185,8 +185,8 @@ export default function AIView({ onStatus, onOpenSettings }: Props) {
           <b>Read and test</b>
           <span className="dim">
             {" "}
-            Also send requests and run active scans, only against hosts in your
-            target scope and at most {st.budget} requests per session. Every
+            Also send requests and run active scans, only against your targets
+            and at most {st.budget} requests per session. Every
             request it sends shows up in Proxy History marked{" "}
             <span className="ai-tag">AI</span>.
           </span>
@@ -196,14 +196,14 @@ export default function AIView({ onStatus, onOpenSettings }: Props) {
         (scopeHosts.length === 0 ? (
           <div className="ai-warn row">
             <span className="grow">
-              No target scope is set, so the assistant can read traffic but
-              can't send requests yet.
+              No targets are set, so the assistant can read traffic but can't
+              send requests or scan yet.
             </span>
-            <button onClick={onOpenSettings}>Set target scope</button>
+            <button onClick={onOpenSettings}>Set targets</button>
           </div>
         ) : (
           <p className="dim" style={{ margin: 0 }}>
-            In scope: <span className="mono">{scopeHosts.join(", ")}</span>{" "}
+            Targets: <span className="mono">{scopeHosts.join(", ")}</span>{" "}
             <a href="#" onClick={(e) => (e.preventDefault(), onOpenSettings())}>
               change
             </a>

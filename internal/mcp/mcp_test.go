@@ -115,7 +115,7 @@ func TestInitializeNegotiatesVersionAndListsTools(t *testing.T) {
 	if res["protocolVersion"] != "2025-06-18" {
 		t.Fatalf("protocolVersion = %v", res["protocolVersion"])
 	}
-	if !strings.Contains(res["instructions"].(string), "Target scope") {
+	if !strings.Contains(res["instructions"].(string), "targets") {
 		t.Fatal("instructions should explain scope")
 	}
 	res = rpc(t, fx.srv, "initialize", map[string]any{"protocolVersion": "1999-01-01"})["result"].(map[string]any)
@@ -279,11 +279,11 @@ func TestSendRequestGuards(t *testing.T) {
 	fx.opts.Level = LevelReadWrite
 
 	fx.scope = nil
-	if text, isErr := fx.call(t, "send_request", map[string]any{"raw": raw, "scheme": "http"}); !isErr || !strings.Contains(text, "No Target scope") {
+	if text, isErr := fx.call(t, "send_request", map[string]any{"raw": raw, "scheme": "http"}); !isErr || !strings.Contains(text, "No targets are set") {
 		t.Fatalf("no scope should refuse: %s", text)
 	}
 	fx.scope = []string{"example.com"}
-	if text, isErr := fx.call(t, "send_request", map[string]any{"raw": raw, "scheme": "http"}); !isErr || !strings.Contains(text, "outside the Target scope") {
+	if text, isErr := fx.call(t, "send_request", map[string]any{"raw": raw, "scheme": "http"}); !isErr || !strings.Contains(text, "not one of the user's targets") {
 		t.Fatalf("out-of-scope should refuse: %s", text)
 	}
 	select {

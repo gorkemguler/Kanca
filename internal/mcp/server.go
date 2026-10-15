@@ -1,6 +1,6 @@
 // Package mcp lets AI assistants such as Claude work with Kanca through the
 // Model Context Protocol: read captured traffic, the site map and findings,
-// send requests to in-scope hosts, run active scans and record findings.
+// send requests to and scan the user's targets, and record findings.
 //
 // The endpoint speaks MCP's Streamable HTTP transport (JSON responses, no
 // server-initiated stream), listens on loopback only and requires a bearer
@@ -40,7 +40,7 @@ const DefaultBudget = 500
 type Deps struct {
 	Store   *history.Store
 	Scanner *scanner.Scanner
-	// Scope returns the in-scope matcher, or nil when no target scope is set;
+	// Scope returns the matcher for the user's targets, or nil when none are set;
 	// actions are refused without one.
 	Scope func() func(host string) bool
 	// ScopeHosts lists the configured scope entries, for display.
@@ -267,4 +267,4 @@ const instructions = `Kanca is an intercepting proxy. The user browses a target 
 
 Work like a careful tester: start with list_flows and get_sitemap to understand the application, read interesting requests with get_flow, and form concrete hypotheses (IDOR, injection, auth/session flaws, missing access control, information leaks). Verify them with send_request or active_scan before reporting, then record each confirmed or strongly suspected issue with add_finding, including the evidence (flow IDs, what changed, what came back).
 
-Only the hosts in the user's Target scope may be tested; get_scope tells you what is allowed. Keep requests minimal and non-destructive: never delete or modify real data, never brute-force credentials, and stop if something looks unsafe. Values like [[KANCA_SECRET_3]] are masked secrets (cookies, tokens, passwords): copy them unchanged into send_request and Kanca substitutes the real value.`
+Only the user's targets may be tested; get_scope lists them. You can read all captured traffic, but leave other sites alone. Keep requests minimal and non-destructive: never delete or modify real data, never brute-force credentials, and stop if something looks unsafe. Values like [[KANCA_SECRET_3]] are masked secrets (cookies, tokens, passwords): copy them unchanged into send_request and Kanca substitutes the real value.`

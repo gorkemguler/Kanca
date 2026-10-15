@@ -47,8 +47,12 @@ type App struct {
 	attackCancel context.CancelFunc
 
 	scopeMu      sync.Mutex
-	scopeEnabled bool
+	scopeEnabled bool // record only target traffic
 	scopeHosts   []string
+
+	siteScanMu     sync.Mutex
+	siteScanCancel context.CancelFunc
+	siteScanLast   *SiteScanProgress
 
 	rules   *rules.Set
 	scanner *scanner.Scanner
@@ -130,7 +134,7 @@ func (a *App) StartProxy(addr string) (ProxyStatus, error) {
 	p.OnHold(func(h *proxy.Held) {
 		wruntime.EventsEmit(a.ctx, "intercept:hold", toHeldView(h))
 	})
-	p.SetScope(a.scopeMatcher())
+	p.SetScope(a.recordMatcher())
 	p.SetRewriter(a.rulesRewriter())
 	p.OnWSOpen(a.ws.onOpen)
 	p.OnWSFrame(a.ws.onFrame)
@@ -223,7 +227,9 @@ func (a *App) trustChanged() TrustStatus {
 
 // ---- Scope -----------------------------------------------------------------
 
-// ScopeConfig is the frontend-facing target scope.
+// ScopeConfig is the frontend-facing target list. Hosts are the targets:
+// active scans, site scans and the AI assistant may only test these. Enabled
+// additionally limits recording to them; otherwise everything is recorded.
 type ScopeConfig struct {
 	Enabled bool     `json:"enabled"`
 	Hosts   []string `json:"hosts"`
@@ -236,20 +242,31 @@ func (a *App) GetScope() ScopeConfig {
 	return ScopeConfig{Enabled: a.scopeEnabled, Hosts: append([]string(nil), a.scopeHosts...)}
 }
 
-// SetScope updates which hosts are recorded. When enabled, only traffic whose
-// host matches one of the patterns is added to the history; everything else is
-// still proxied but not recorded. Patterns match a host exactly, as a parent
-// domain ("example.com" covers "api.example.com"), or via a "*." wildcard.
+// SetScope sets the targets and whether only their traffic is recorded (the
+// rest is still proxied). Patterns match a host exactly, as a parent domain
+// ("example.com" covers "api.example.com"), or via a "*." wildcard; URLs and
+// host:port are reduced to the host.
 func (a *App) SetScope(cfg ScopeConfig) {
 	a.scopeMu.Lock()
 	a.scopeEnabled = cfg.Enabled
 	a.scopeHosts = scope.Normalize(cfg.Hosts)
 	a.scopeMu.Unlock()
-	a.withProxy(func(p *proxy.Proxy) { p.SetScope(a.scopeMatcher()) })
+	a.withProxy(func(p *proxy.Proxy) { p.SetScope(a.recordMatcher()) })
+	if a.ctx != nil {
+		wruntime.EventsEmit(a.ctx, "scope:changed", a.GetScope())
+	}
 }
 
-// scopeMatcher builds the host predicate for the proxy, or nil to record all.
-func (a *App) scopeMatcher() func(host string) bool {
+// AddTarget adds host (a host, host:port or URL) to the targets.
+func (a *App) AddTarget(host string) ScopeConfig {
+	cfg := a.GetScope()
+	cfg.Hosts = append(cfg.Hosts, host)
+	a.SetScope(cfg)
+	return a.GetScope()
+}
+
+// recordMatcher is the proxy's recording filter, or nil to record everything.
+func (a *App) recordMatcher() func(host string) bool {
 	a.scopeMu.Lock()
 	enabled := a.scopeEnabled
 	hosts := append([]string(nil), a.scopeHosts...)
@@ -258,6 +275,23 @@ func (a *App) scopeMatcher() func(host string) bool {
 		return nil
 	}
 	return scope.Matcher(hosts)
+}
+
+// targetMatcher reports which hosts may be tested, or nil when no targets are
+// set (then nothing may be).
+func (a *App) targetMatcher() func(host string) bool {
+	a.scopeMu.Lock()
+	hosts := append([]string(nil), a.scopeHosts...)
+	a.scopeMu.Unlock()
+	return scope.Matcher(hosts)
+}
+
+// checkTarget explains that a host has to be added to the targets first.
+func (a *App) checkTarget(authority string) error {
+	if m := a.targetMatcher(); m != nil && m(hostOnlyApp(authority)) {
+		return nil
+	}
+	return fmt.Errorf("%s is not one of your targets; add it under CA / Settings → Targets to scan it", hostOnlyApp(authority))
 }
 
 // ---- Match & replace rules -------------------------------------------------
@@ -284,8 +318,8 @@ func (a *App) GetFindings() []scanner.Finding { return a.scanner.Findings() }
 func (a *App) ClearFindings() { a.scanner.Clear() }
 
 // ActiveScan runs a bounded set of probes against a single captured request and
-// merges any findings into the Findings list. It refuses out-of-scope hosts when
-// a scope is configured. When aggressive is true it additionally runs
+// merges any findings into the Findings list. Only targets may be scanned.
+// When aggressive is true it additionally runs
 // boolean/time-based SQLi and time-based command-injection probes, which make the
 // target do observable work. Probing runs in the background; results arrive as
 // scanner:finding events, then activescan:done.
@@ -294,8 +328,8 @@ func (a *App) ActiveScan(flowID int64, aggressive bool) error {
 	if !ok {
 		return fmt.Errorf("flow %d not found", flowID)
 	}
-	if m := a.scopeMatcher(); m != nil && !m(hostOnlyApp(f.Host)) {
-		return fmt.Errorf("host %q is out of scope; active scanning is limited to in-scope hosts", f.Host)
+	if err := a.checkTarget(f.Host); err != nil {
+		return err
 	}
 	cfg := activescan.Config{
 		Scheme:           f.Scheme,

@@ -264,7 +264,7 @@ export default function App() {
         {tab === "rules" && <RulesView />}
         {tab === "findings" && <FindingsView onOpenFlow={openFlow} />}
         {tab === "websocket" && <WebSocketView />}
-        {tab === "sitemap" && <SiteMapView />}
+        {tab === "sitemap" && <SiteMapView onOpenFindings={() => setTab("findings")} />}
         {tab === "ai" && <AIView onStatus={setAi} onOpenSettings={() => setTab("settings")} />}
         {tab === "settings" && <SettingsView />}
       </div>

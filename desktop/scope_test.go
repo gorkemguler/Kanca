@@ -1,22 +1,38 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-func TestScopeMatcher(t *testing.T) {
+func TestTargetsAreSeparateFromRecording(t *testing.T) {
 	a := &App{}
-	// Disabled scope records everything (nil matcher).
-	if a.scopeMatcher() != nil {
-		t.Fatal("disabled scope should return nil matcher")
+	if a.recordMatcher() != nil || a.targetMatcher() != nil {
+		t.Fatal("with nothing set, everything is recorded and nothing may be tested")
 	}
-	a.SetScope(ScopeConfig{Enabled: true, Hosts: []string{" Example.COM ", ""}})
-	m := a.scopeMatcher()
-	if m == nil {
-		t.Fatal("enabled scope should return a matcher")
+	if err := a.checkTarget("example.com:443"); err == nil {
+		t.Fatal("scanning must need a target")
 	}
-	if !m("api.example.com") {
-		t.Error("expected api.example.com in scope (normalised host)")
+
+	// Targets without "record only targets": still record everything, but only
+	// targets may be tested.
+	a.SetScope(ScopeConfig{Hosts: []string{"https://Example.COM/app", ""}})
+	if a.recordMatcher() != nil {
+		t.Fatal("recording should stay unfiltered")
 	}
-	if m("other.org") {
-		t.Error("other.org should be out of scope")
+	if err := a.checkTarget("api.example.com:443"); err != nil {
+		t.Fatalf("subdomain of a target should be testable: %v", err)
+	}
+	if err := a.checkTarget("other.org:443"); err == nil || !strings.Contains(err.Error(), "not one of your targets") {
+		t.Fatalf("other.org should be refused, got %v", err)
+	}
+
+	a.SetScope(ScopeConfig{Enabled: true, Hosts: []string{"example.com"}})
+	if m := a.recordMatcher(); m == nil || !m("api.example.com") || m("other.org") {
+		t.Fatal("record-only-targets should filter recording to targets")
+	}
+
+	if got := a.AddTarget("https://shop.test:8443/x").Hosts; len(got) != 2 || got[1] != "shop.test" {
+		t.Fatalf("AddTarget = %q", got)
 	}
 }

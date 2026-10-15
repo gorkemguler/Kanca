@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, on, TrustStatus } from "../lib/api";
+import { api, on, ScopeConfig, TrustStatus } from "../lib/api";
 
 export default function SettingsView() {
   const [ca, setCa] = useState("");
@@ -64,13 +64,13 @@ export default function SettingsView() {
   useEffect(() => {
     api.getTrustStatus().then(setTrust).catch(() => setTrust(null));
     api.getRootCA().then(setCa).catch(() => setCa(""));
-    api
-      .getScope()
-      .then((s) => {
-        setScopeEnabled(s.enabled);
-        setScopeHosts((s.hosts ?? []).join("\n"));
-      })
-      .catch(() => {});
+    const showScope = (s: ScopeConfig) => {
+      setScopeEnabled(s.enabled);
+      setScopeHosts((s.hosts ?? []).join("\n"));
+    };
+    api.getScope().then(showScope).catch(() => {});
+    // Targets added from the site map or history show up here too.
+    return on("scope:changed", showScope);
   }, []);
 
   const saveScope = async () => {
@@ -189,22 +189,15 @@ export default function SettingsView() {
         value={ca}
       />
 
-      <h3 style={{ marginTop: 24 }}>Target scope</h3>
+      <h3 style={{ marginTop: 24 }}>Targets</h3>
       <div className="callout">
-        When scope is on, only traffic to these hosts is recorded to the
-        history; everything else is still proxied but not logged. One host per
-        line. A bare domain covers its subdomains (<span className="mono">example.com</span>{" "}
-        matches <span className="mono">api.example.com</span>); use{" "}
-        <span className="mono">*.example.com</span> for subdomains only.
+        Kanca only scans these hosts: active scans, <b>Scan site</b> and the AI
+        assistant refuse anything else. One host per line; a bare domain covers
+        its subdomains (<span className="mono">example.com</span> matches{" "}
+        <span className="mono">api.example.com</span>), and{" "}
+        <span className="mono">*.example.com</span> means subdomains only. You
+        can paste a URL.
       </div>
-      <label className="row">
-        <input
-          type="checkbox"
-          checked={scopeEnabled}
-          onChange={(e) => setScopeEnabled(e.target.checked)}
-        />
-        <span>Restrict recording to in-scope hosts</span>
-      </label>
       <textarea
         className="payloads mono"
         style={{ minHeight: 120 }}
@@ -213,9 +206,20 @@ export default function SettingsView() {
         value={scopeHosts}
         onChange={(e) => setScopeHosts(e.target.value)}
       />
+      <label className="row">
+        <input
+          type="checkbox"
+          checked={scopeEnabled}
+          onChange={(e) => setScopeEnabled(e.target.checked)}
+        />
+        <span>
+          Only record traffic to targets{" "}
+          <span className="dim">(other sites are still proxied, just not logged)</span>
+        </span>
+      </label>
       <div className="row">
         <button className="primary" onClick={saveScope}>
-          {scopeSaved ? "Saved!" : "Save scope"}
+          {scopeSaved ? "Saved!" : "Save targets"}
         </button>
       </div>
     </div>

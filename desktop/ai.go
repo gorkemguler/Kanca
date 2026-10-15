@@ -35,7 +35,7 @@ func (a *App) newMCPServer() *mcp.Server {
 	return mcp.NewServer(mcp.Deps{
 		Store:      a.store,
 		Scanner:    a.scanner,
-		Scope:      a.scopeMatcher,
+		Scope:      a.targetMatcher,
 		ScopeHosts: func() []string { return a.GetScope().Hosts },
 		Version:    appVersion,
 		OnActivity: func(act mcp.Activity) { wruntime.EventsEmit(a.ctx, "mcp:activity", act) },

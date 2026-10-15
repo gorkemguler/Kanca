@@ -110,9 +110,32 @@ export interface IntruderPreview {
   requests: number;
 }
 
+/** hosts are the targets (the only hosts Kanca scans); enabled also limits
+ * recording to them. */
 export interface ScopeConfig {
   enabled: boolean;
   hosts: string[];
+}
+
+export interface SiteScanPlan {
+  host: string;
+  safe: number;
+  unsafe: number;
+}
+
+export interface SiteScanProgress {
+  host: string;
+  done: number;
+  total: number;
+  current: string;
+  found: number;
+}
+
+export interface SiteScanDone {
+  host: string;
+  scanned: number;
+  found: number;
+  stopped: boolean;
 }
 
 export type RulePhase = "request" | "response";
@@ -235,6 +258,11 @@ interface WailsBackend {
   ExportExtension(): Promise<string>;
   GetScope(): Promise<ScopeConfig>;
   SetScope(cfg: ScopeConfig): Promise<void>;
+  AddTarget(host: string): Promise<ScopeConfig>;
+  PlanSiteScan(host: string): Promise<SiteScanPlan>;
+  ScanSite(host: string, includeUnsafe: boolean, aggressive: boolean): Promise<void>;
+  StopSiteScan(): Promise<void>;
+  SiteScanStatus(): Promise<SiteScanProgress | null>;
   ListHistory(
     text: string,
     methods: string[],
@@ -310,6 +338,12 @@ export const api = {
   exportExtension: () => backend().ExportExtension(),
   getScope: () => backend().GetScope(),
   setScope: (cfg: ScopeConfig) => backend().SetScope(cfg),
+  addTarget: (host: string) => backend().AddTarget(host),
+  planSiteScan: (host: string) => backend().PlanSiteScan(host),
+  scanSite: (host: string, includeUnsafe: boolean, aggressive: boolean) =>
+    backend().ScanSite(host, includeUnsafe, aggressive),
+  stopSiteScan: () => backend().StopSiteScan(),
+  siteScanStatus: () => backend().SiteScanStatus(),
   listHistory: (text: string, methods: string[], searchBodies: boolean) =>
     backend().ListHistory(text, methods, searchBodies),
   clearHistory: () => backend().ClearHistory(),
@@ -355,4 +389,17 @@ export const api = {
 export function on(event: string, cb: (...data: any[]) => void): () => void {
   if (!window.runtime) return () => {};
   return window.runtime.EventsOn(event, cb);
+}
+
+/** isNotTarget reports whether an error says a host must be added as a target. */
+export function isNotTarget(e: unknown): boolean {
+  return String((e as any)?.message ?? e).includes("not one of your targets");
+}
+
+/** hostOf strips the port from an authority such as "example.com:443". */
+export function hostOf(authority: string): string {
+  const m = authority.match(/^\[([^\]]+)\](?::\d+)?$/);
+  if (m) return m[1];
+  const i = authority.lastIndexOf(":");
+  return i > 0 && authority.indexOf(":") === i ? authority.slice(0, i) : authority;
 }

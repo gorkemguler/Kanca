@@ -543,3 +543,59 @@ details[open] summary {
 .trust-banner button {
   white-space: nowrap;
 }
+
+/* ---- site scan ---- */
+.scan-site {
+  padding: 1px 8px;
+  font-size: 11px;
+  margin-left: 4px;
+  opacity: 0.6;
+}
+.row:hover .scan-site {
+  opacity: 1;
+}
+.scan-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px;
+  padding: 10px 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  line-height: 1.55;
+  flex-shrink: 0;
+}
+.scan-panel p {
+  margin: 0;
+}
+.scan-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.scan-bar {
+  width: 160px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.scan-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+.scan-current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

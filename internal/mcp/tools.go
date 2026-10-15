@@ -87,13 +87,13 @@ var toolDefs = []tool{
 	},
 	{
 		Name: "get_scope", Title: "Show what may be tested",
-		Description: "The user's Target scope (the only hosts you may send requests to), your access level, and how many requests you have left.",
+		Description: "The user's targets (the only hosts you may send requests to or scan), your access level, and how many requests you have left.",
 		InputSchema: obj(map[string]any{}),
 		Annotations: readOnly,
 	},
 	{
 		Name: "send_request", Title: "Send a request",
-		Description: "Send a raw HTTP/1.1 request to an in-scope host, like Burp Repeater, and return the response. It is recorded in Kanca's history marked as sent by AI. Start from a captured flow (get_flow) and change one thing at a time. Content-Length is recomputed. Keep [[KANCA_SECRET_n]] placeholders as they are.",
+		Description: "Send a raw HTTP/1.1 request to one of the user's targets, like Burp Repeater, and return the response. It is recorded in Kanca's history marked as sent by AI. Start from a captured flow (get_flow) and change one thing at a time. Content-Length is recomputed. Keep [[KANCA_SECRET_n]] placeholders as they are.",
 		InputSchema: obj(map[string]any{
 			"raw":            map[string]any{"type": "string", "description": "The full request: request line, headers, blank line, optional body."},
 			"from_flow_id":   map[string]any{"type": "integer", "description": "Use this flow's scheme and host as defaults."},
@@ -212,7 +212,7 @@ func describeCall(name string, args json.RawMessage) string {
 	case "list_findings":
 		return "Read findings"
 	case "get_scope":
-		return "Read the target scope"
+		return "Read the targets"
 	case "send_request":
 		head, _, _ := strings.Cut(strings.ReplaceAll(strings.TrimLeft(a.Raw, "\r\n"), "\r\n", "\n"), "\n\n")
 		line, _, _ := strings.Cut(head, "\n")
@@ -446,12 +446,12 @@ func (s *Server) getScope() toolResult {
 	var b strings.Builder
 	hosts := s.deps.ScopeHosts()
 	if s.deps.Scope() == nil || len(hosts) == 0 {
-		b.WriteString("No Target scope is set, so no requests may be sent. Ask the user to set one in Kanca (CA / Settings → Target scope).\n")
+		b.WriteString("No targets are set, so no requests may be sent. Ask the user to add the site under CA / Settings → Targets in Kanca.\n")
 	} else {
-		fmt.Fprintf(&b, "In scope (a bare domain also covers its subdomains): %s\n", strings.Join(hosts, ", "))
+		fmt.Fprintf(&b, "Targets (a bare domain also covers its subdomains): %s\n", strings.Join(hosts, ", "))
 	}
 	if o.Level == LevelReadWrite {
-		fmt.Fprintf(&b, "Access: read and send requests to in-scope hosts. Requests left this session: %d.\n", s.budget(o)-s.Sent())
+		fmt.Fprintf(&b, "Access: read all captured traffic; send requests and scan targets only. Requests left this session: %d.\n", s.budget(o)-s.Sent())
 	} else {
 		b.WriteString("Access: read-only. You can analyse traffic and record findings but not send requests.\n")
 	}
@@ -475,10 +475,10 @@ func (s *Server) allowed(host string) (string, bool) {
 	}
 	inScope := s.deps.Scope()
 	if inScope == nil {
-		return "No Target scope is set. Ask the user to set one in Kanca (CA / Settings → Target scope) before testing.", false
+		return "No targets are set. Ask the user to add the site under CA / Settings → Targets in Kanca before testing.", false
 	}
 	if !inScope(hostOnly(host)) {
-		return fmt.Sprintf("%s is outside the Target scope (%s); only in-scope hosts may be tested.", hostOnly(host), strings.Join(s.deps.ScopeHosts(), ", ")), false
+		return fmt.Sprintf("%s is not one of the user's targets (%s); only targets may be tested.", hostOnly(host), strings.Join(s.deps.ScopeHosts(), ", ")), false
 	}
 	return "", true
 }
