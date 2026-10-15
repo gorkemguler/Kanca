@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, TrustStatus } from "../lib/api";
+import { api, on, TrustStatus } from "../lib/api";
 
 export default function SettingsView() {
   const [ca, setCa] = useState("");
@@ -57,6 +57,9 @@ export default function SettingsView() {
       setCaMsg({ ok: false, text: String(e?.message ?? e) });
     }
   };
+
+  // The trust banner can install the certificate too; stay in step with it.
+  useEffect(() => on("trust:status", (t: TrustStatus) => setTrust(t)), []);
 
   useEffect(() => {
     api.getTrustStatus().then(setTrust).catch(() => setTrust(null));

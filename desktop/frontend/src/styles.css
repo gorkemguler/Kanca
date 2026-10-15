@@ -524,3 +524,22 @@ details summary {
 details[open] summary {
   margin-bottom: 6px;
 }
+
+/* ---- certificate trust banner ---- */
+.trust-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: rgba(216, 161, 58, 0.12);
+  border-bottom: 1px solid rgba(216, 161, 58, 0.45);
+  color: var(--text);
+  line-height: 1.45;
+  flex-shrink: 0;
+}
+.trust-banner b {
+  color: var(--warn);
+}
+.trust-banner button {
+  white-space: nowrap;
+}

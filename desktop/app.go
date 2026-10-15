@@ -194,9 +194,9 @@ func (a *App) GetTrustStatus() TrustStatus {
 // shows its own authorisation prompt.
 func (a *App) InstallCA() (TrustStatus, error) {
 	if err := trust.Install(a.ca); err != nil {
-		return a.GetTrustStatus(), err
+		return a.trustChanged(), err
 	}
-	st := a.GetTrustStatus()
+	st := a.trustChanged()
 	if !st.Trusted {
 		return st, fmt.Errorf("the certificate was added, but the system still doesn't trust it; open Keychain Access, find \"Kanca Root CA\" and set it to Always Trust")
 	}
@@ -206,7 +206,19 @@ func (a *App) InstallCA() (TrustStatus, error) {
 // RemoveCA removes the trust setting and the root certificate from the keychain.
 func (a *App) RemoveCA() (TrustStatus, error) {
 	err := trust.Remove(a.ca)
-	return a.GetTrustStatus(), err
+	st := a.trustChanged()
+	if err == nil && st.Trusted {
+		err = fmt.Errorf("removed from your login keychain, but this Mac still trusts Kanca's certificate because it is also installed system-wide: in Keychain Access, open the System keychain and delete \"Kanca Root CA\"")
+	}
+	return st, err
+}
+
+// trustChanged re-checks trust and tells every view, so the trust banner and
+// CA / Settings agree.
+func (a *App) trustChanged() TrustStatus {
+	st := a.GetTrustStatus()
+	wruntime.EventsEmit(a.ctx, "trust:status", st)
+	return st
 }
 
 // ---- Scope -----------------------------------------------------------------

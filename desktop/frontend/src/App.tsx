@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, on, FlowView, MCPStatus, ProxyStatus } from "./lib/api";
+import { api, on, FlowView, MCPStatus, ProxyStatus, TrustStatus } from "./lib/api";
 import HistoryView from "./components/HistoryView";
 import InterceptView from "./components/InterceptView";
 import RepeaterView from "./components/RepeaterView";
@@ -31,6 +31,10 @@ export default function App() {
   const [queueCount, setQueueCount] = useState(0);
   const [busy, setBusy] = useState("");
   const [ai, setAi] = useState<MCPStatus | null>(null);
+  const [trust, setTrust] = useState<TrustStatus | null>(null);
+  const [trustBusy, setTrustBusy] = useState(false);
+  const [trustErr, setTrustErr] = useState("");
+  const [trustLater, setTrustLater] = useState(false);
 
   // Cross-tab hand-offs from History / Findings.
   const [repeaterQueue, setRepeaterQueue] = useState<number[]>([]);
@@ -39,7 +43,22 @@ export default function App() {
 
   useEffect(() => {
     api.getMCPStatus().then(setAi).catch(() => {});
+    api.getTrustStatus().then(setTrust).catch(() => {});
+    // Installing or removing the certificate in CA / Settings updates the banner.
+    return on("trust:status", (t: TrustStatus) => setTrust(t));
   }, []);
+
+  const trustCA = async () => {
+    setTrustErr("");
+    setTrustBusy(true);
+    try {
+      setTrust(await api.installCA());
+    } catch (e: any) {
+      setTrustErr(String(e?.message ?? e));
+    } finally {
+      setTrustBusy(false);
+    }
+  };
 
   useEffect(() => {
     api.getStatus().then((s) => {
@@ -187,6 +206,22 @@ export default function App() {
           Export HAR
         </button>
       </div>
+
+      {trust?.supported && !trust.trusted && !trustLater && (
+        <div className="trust-banner">
+          <span className="grow">
+            <b>HTTPS isn't trusted yet.</b> Your own browser shows certificate warnings
+            until this Mac trusts Kanca's certificate. (Open browser works without it.)
+            {trustErr && <span className="err-text"> {trustErr}</span>}
+          </span>
+          <button className="primary" disabled={trustBusy} onClick={trustCA}>
+            {trustBusy ? "Waiting for macOS…" : "Trust certificate"}
+          </button>
+          <button disabled={trustBusy} onClick={() => setTrustLater(true)}>
+            Not now
+          </button>
+        </div>
+      )}
 
       <div className="tabs">
         {tabs.map((t) => (
