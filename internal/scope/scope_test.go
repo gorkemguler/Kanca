@@ -32,3 +32,16 @@ func TestMatcher(t *testing.T) {
 		t.Fatal("matcher should normalise entries and hosts")
 	}
 }
+
+func TestNormalizeAcceptsPastedURLs(t *testing.T) {
+	got := Normalize([]string{"https://GorkemGuler.art/projects?x=1", "gorkemguler.art:443", " *.Example.com ", "[::1]:8080", "user@host.test", "", "10.0.0.5"})
+	want := []string{"gorkemguler.art", "*.example.com", "::1", "host.test", "10.0.0.5"}
+	if len(got) != len(want) {
+		t.Fatalf("Normalize = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("Normalize = %q, want %q", got, want)
+		}
+	}
+}

@@ -3,11 +3,31 @@ package scope
 
 import "strings"
 
-// Normalize trims and lower-cases entries and drops empty ones.
+// Normalize turns entries into lower-case host patterns, accepting what people
+// paste (a URL, host:port), and drops empty and repeated ones.
 func Normalize(in []string) []string {
 	out := make([]string, 0, len(in))
+	seen := map[string]bool{}
 	for _, h := range in {
-		if h = strings.ToLower(strings.TrimSpace(h)); h != "" {
+		h = strings.ToLower(strings.TrimSpace(h))
+		if i := strings.Index(h, "://"); i >= 0 {
+			h = h[i+3:]
+		}
+		if i := strings.IndexAny(h, "/?#"); i >= 0 {
+			h = h[:i]
+		}
+		if i := strings.LastIndexByte(h, '@'); i >= 0 {
+			h = h[i+1:]
+		}
+		if strings.HasPrefix(h, "[") {
+			if j := strings.IndexByte(h, ']'); j > 0 {
+				h = h[1:j]
+			}
+		} else if strings.Count(h, ":") == 1 {
+			h = h[:strings.IndexByte(h, ':')]
+		}
+		if h != "" && !seen[h] {
+			seen[h] = true
 			out = append(out, h)
 		}
 	}
