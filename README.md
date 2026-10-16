@@ -33,7 +33,7 @@ every transaction, and lets you pause, edit, replay and fuzz requests.
     <td width="50%"><img src="assets/screenshots/intruder.png" alt="Intruder"><br><sub><b>Intruder</b> — enumerating user IDs 1–30; grep-match flags the two admin accounts.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="assets/screenshots/findings.png" alt="Findings"><br><sub><b>Findings</b> — passive header/cookie checks, active-scan leads (XSS, SQLi, SSTI, open redirect, CRLF) and issues Claude confirmed (<b>AI</b>).</sub></td>
+    <td width="50%"><img src="assets/screenshots/findings.png" alt="Scanner"><br><sub><b>Scanner</b> — targets, one-click <b>Scan targets</b>, and the findings: passive checks, active-scan leads (XSS, SQLi, SSTI, open redirect, CRLF) and issues Claude confirmed (<b>AI</b>).</sub></td>
     <td width="50%"><img src="assets/screenshots/sitemap.png" alt="Site map"><br><sub><b>Site map</b> — captured endpoints as a per-host tree.</sub></td>
   </tr>
 </table>
@@ -125,7 +125,7 @@ Chrome, Edge or Brave in a separate profile that is already routed through it.
 
 Kanca prefers Chrome when it's installed. The browser's own update and sync
 traffic is switched off, but Edge still sends a few requests to Microsoft
-services; add your site under **CA / Settings → Targets** and tick *Only record
+services; add your site as a target in the **Scanner** tab and tick *Only record
 traffic to targets* to keep them out of the history.
 
 From the CLI, `go run ./cmd/kanca -browser` does the same.
@@ -174,7 +174,7 @@ captured, looks for vulnerabilities, checks its hunches with its own requests an
 records what it confirms in **Findings**. It talks to Kanca over the
 [Model Context Protocol](https://modelcontextprotocol.io).
 
-**Turn it on:** add the site under **CA / Settings → Targets**, open the **AI
+**Turn it on:** add the site as a target in the **Scanner** tab, open the **AI
 Assistant** tab and tick **Allow AI assistants to use Kanca**. Then connect Claude:
 
 - **Claude Code**: click **Copy command** and run it once in a terminal. It looks like
@@ -231,13 +231,13 @@ the [CLI](#quick-start--headless-cli) and prints the commands to connect.
 | **Interception queue** | Pause requests (and optionally responses), edit the raw bytes, then forward or drop them. |
 | **Repeater** | Take any request, tweak it freely, and resend it as many times as you like — each tab keeps its own send history, and a line diff compares a response with the previous send. |
 | **Intruder / fuzzer** | Automated payload injection with four attack types (sniper, battering ram, pitchfork, cluster bomb), concurrency control and grep-match highlighting. Payload sets come from a list or a generated numeric range, with per-set processors (URL/base64 encode, upper/lower, MD5/SHA-1/SHA-256). |
-| **Targets** | The hosts you may test (exact, parent-domain or `*.` wildcard; pasting a URL works). Active scans, site scans and the AI assistant refuse anything else, while every site is still recorded unless you choose *Only record traffic to targets*. |
+| **Targets** | Set in the **Scanner** tab: the hosts you may test (exact, parent-domain or `*.` wildcard; pasting a URL works). Active scans, site scans and the AI assistant refuse anything else, while every site is still recorded unless you choose *Only record traffic to targets*. |
 | **Readable bodies** | Browsers ask for `br` and `zstd`, which Kanca can't decode, so it asks servers only for `gzip` and `deflate` and decodes those for display, search, Intruder grep and scanning. |
 | **Site map** | Captured traffic arranged as a per-host tree of URL paths, so you can see a target's structure rather than a flat log. |
 | **Match & replace** | Regex substitutions applied on the wire — rewrite the request line, a header, or the body of outbound requests and inbound responses (Content-Length is kept correct). |
 | **Body search** | Filter the history across request/response bodies, not just method/host/path. |
 | **Passive scanner** | Flags security issues from observed traffic (missing CSP/HSTS/X-Content-Type-Options, insecure cookies, permissive CORS, version disclosure) without sending any extra requests. |
-| **Site scan** | In the Site Map, **Scan site** runs the active scanner over every captured request with parameters on a target, one at a time, with live progress. Forms and other state-changing requests are only included when you tick them, since each probe submits them again. |
+| **Site scan** | **Scan targets** in the Scanner tab (or **Scan site** on a host in the Site Map) runs the active scanner over every captured request with parameters on your targets, one at a time, with live progress; the findings appear right below. Forms and other state-changing requests are only included when you tick them, since each probe submits them again. |
 | **Active scanner** | On demand, probes one request's insertion points — query, form-body and JSON-body parameters — for reflected input/XSS, error-based SQL injection, path traversal, open redirect, template injection (SSTI) and CRLF/header injection, restricted to your targets. An opt-in **aggressive** mode adds boolean- and time-based SQLi and time-based command-injection checks (these make the target do observable work). Detection-only: every check compares against a baseline and flags a lead to verify by hand — it never attempts exploitation. |
 | **Save / import / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2 and import HAR captures from other tools. |
 | **WebSocket support** | `ws://` and `wss://` upgrades are bridged transparently (they used to break, since `Upgrade`/`Connection` are stripped as hop-by-hop for ordinary HTTP) with a live, per-connection frame log — hand-rolled RFC 6455 framing, no dependency. |

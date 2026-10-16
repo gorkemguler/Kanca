@@ -36,7 +36,7 @@ fuzzlamanıza olanak tanır.
     <td width="50%"><img src="assets/screenshots/intruder.png" alt="Intruder"><br><sub><b>Intruder</b> — 1–30 arası kullanıcı ID'leri taranıyor; grep-match iki admin hesabını işaretliyor.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="assets/screenshots/findings.png" alt="Bulgular"><br><sub><b>Bulgular</b> — pasif header/cookie kontrolleri, aktif tarama ipuçları (XSS, SQLi, SSTI, open redirect, CRLF) ve Claude'un doğruladığı açıklar (<b>AI</b>).</sub></td>
+    <td width="50%"><img src="assets/screenshots/findings.png" alt="Scanner"><br><sub><b>Scanner</b> — hedefler, tek tıkla <b>Scan targets</b> ve bulgular: pasif kontroller, aktif tarama ipuçları (XSS, SQLi, SSTI, open redirect, CRLF) ve Claude'un doğruladığı açıklar (<b>AI</b>).</sub></td>
     <td width="50%"><img src="assets/screenshots/sitemap.png" alt="Site haritası"><br><sub><b>Site haritası</b> — yakalanan endpoint'ler host bazlı bir ağaç olarak.</sub></td>
   </tr>
 </table>
@@ -130,8 +130,8 @@ ayrı bir profille açar.
 
 Kanca, kuruluysa Chrome'u tercih eder. Tarayıcının kendi güncelleme ve senkron
 trafiği kapatılır, ancak Edge yine de Microsoft servislerine birkaç istek
-gönderir; bunları geçmişten uzak tutmak için sitenizi **CA / Settings → Targets**
-altına ekleyip *Only record traffic to targets* seçeneğini işaretleyin.
+gönderir; bunları geçmişten uzak tutmak için sitenizi **Scanner** sekmesinde hedef
+olarak ekleyip *Only record traffic to targets* seçeneğini işaretleyin.
 
 CLI'da `go run ./cmd/kanca -browser` aynı işi yapar.
 
@@ -180,7 +180,7 @@ yakaladığınız trafiği okur, zafiyet arar, şüphelerini kendi istekleriyle 
 doğruladıklarını **Findings** sekmesine kaydeder. Kanca ile
 [Model Context Protocol](https://modelcontextprotocol.io) üzerinden konuşur.
 
-**Açmak için:** siteyi **CA / Settings → Targets** altına ekleyin, **AI
+**Açmak için:** siteyi **Scanner** sekmesinde hedef olarak ekleyin, **AI
 Assistant** sekmesini açın ve **Allow AI assistants to use Kanca** kutusunu
 işaretleyin. Ardından Claude'u bağlayın:
 
@@ -242,13 +242,13 @@ Arayüz olmadan, `kanca -scope shop.example -mcp` aynı uç noktayı
 | **Interception kuyruğu** | İstekleri (isteğe bağlı olarak yanıtları da) duraklatın, ham baytları düzenleyin, ardından iletin veya düşürün. |
 | **Repeater** | Herhangi bir isteği alın, özgürce değiştirin ve istediğiniz kadar tekrar gönderin — her sekme kendi gönderim geçmişini tutar ve satır bazlı diff, bir yanıtı bir önceki gönderimle karşılaştırır. |
 | **Intruder / fuzzer** | Dört saldırı tipiyle (sniper, battering ram, pitchfork, cluster bomb) otomatik payload enjeksiyonu, eşzamanlılık kontrolü ve grep-eşleşme vurgulama. Payload setleri bir listeden veya üretilen sayısal bir aralıktan gelir; her set için işlemciler (URL/base64 encode, büyük/küçük harf, MD5/SHA-1/SHA-256) uygulanabilir. |
-| **Hedefler (Targets)** | Test etmeye izinli olduğunuz host'lar (tam eşleşme, üst alan adı veya `*.` joker karakter; adres yapıştırmak da olur). Aktif tarama, site taraması ve AI asistanı bunların dışına dokunmaz; *Only record traffic to targets* seçilmedikçe her site yine kaydedilir. |
+| **Hedefler (Targets)** | **Scanner** sekmesinde belirlenir: test etmeye izinli olduğunuz host'lar (tam eşleşme, üst alan adı veya `*.` joker karakter; adres yapıştırmak da olur). Aktif tarama, site taraması ve AI asistanı bunların dışına dokunmaz; *Only record traffic to targets* seçilmedikçe her site yine kaydedilir. |
 | **Okunabilir gövdeler** | Tarayıcılar Kanca'nın çözemediği `br` ve `zstd` sıkıştırmalarını ister; Kanca sunuculardan yalnızca `gzip` ve `deflate` ister ve bunları görüntüleme, arama, Intruder grep ve tarama için çözer. |
 | **Site haritası** | Yakalanan trafik, düz bir günlük yerine host bazlı bir URL yolu ağacı olarak sunulur; böylece hedefin yapısını görebilirsiniz. |
 | **Match & replace** | Hattın üzerinde uygulanan regex değişimleri — giden isteklerin ve gelen yanıtların istek satırını, bir header'ı veya gövdesini yeniden yazın (Content-Length doğru tutulur). |
 | **Gövde arama** | Sadece method/host/path değil, istek/yanıt gövdelerinde de geçmişi filtreleyin. |
 | **Pasif tarayıcı** | Gözlemlenen trafikten güvenlik sorunlarını işaretler (eksik CSP/HSTS/X-Content-Type-Options, güvensiz cookie'ler, gevşek CORS, sürüm ifşası) — ek bir istek göndermeden. |
-| **Site taraması** | Site Map'te **Scan site**, bir hedefte yakalanan parametreli tüm istekleri tek tek aktif tarayıcıdan geçirir ve ilerlemeyi canlı gösterir. Formlar ve durumu değiştiren diğer istekler, her prob onları yeniden gönderdiği için yalnızca siz işaretlerseniz dahil edilir. |
+| **Site taraması** | Scanner sekmesindeki **Scan targets** (ya da Site Map'te bir sitenin yanındaki **Scan site**), hedeflerinizde yakalanan parametreli tüm istekleri tek tek aktif tarayıcıdan geçirir ve ilerlemeyi canlı gösterir; bulgular hemen altında listelenir. Formlar ve durumu değiştiren diğer istekler, her prob onları yeniden gönderdiği için yalnızca siz işaretlerseniz dahil edilir. |
 | **Aktif tarayıcı** | Talep üzerine, tek bir isteğin insertion point'lerini — query, form gövdesi ve JSON gövdesi parametreleri — yansıyan girdi/XSS, hataya dayalı SQL enjeksiyonu, path traversal, open redirect, template enjeksiyonu (SSTI) ve CRLF/header enjeksiyonu için dener; yalnızca hedeflerinizle sınırlı. Opt-in bir **agresif** mod, boolean ve time-based SQLi ile time-based komut enjeksiyonu kontrollerini ekler (bunlar hedefi gözlemlenebilir şekilde çalıştırır). Sadece tespit amaçlıdır: her kontrol bir baseline ile karşılaştırma yapar ve elle doğrulanacak bir ipucu işaretler — asla istismar (exploitation) girişiminde bulunmaz. |
 | **Kaydet / içe-dışa aktar** | Tam bir oturumu (flow'lar, kurallar, bulgular, kapsam) bir proje dosyasına kaydedip sonra tekrar açın; yakalanan trafiği HAR 1.2 olarak dışa aktarın ve başka araçlardan HAR yakalamalarını içe aktarın. |
 | **WebSocket desteği** | `ws://` ve `wss://` upgrade'leri şeffaf biçimde köprülenir (normal HTTP için hop-by-hop olarak `Upgrade`/`Connection` header'ları temizlendiğinden eskiden bu bağlantılar bozulurdu) — canlı, bağlantı başına frame kaydıyla birlikte; sıfırdan yazılmış RFC 6455 framing, harici bağımlılık yok. |
