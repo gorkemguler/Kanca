@@ -227,17 +227,19 @@ the [CLI](#quick-start--headless-cli) and prints the commands to connect.
 | Feature | What it does |
 | --- | --- |
 | **Intercepting proxy** | Terminates TLS with an on-the-fly per-host certificate signed by a local root CA, so HTTPS traffic can be inspected and modified. |
-| **HTTP history** | Every request/response is captured, searchable and filterable, with the full raw bytes of each side. |
+| **HTTP history** | Every request/response is captured, searchable and filterable, with the full raw bytes of each side. Filter by method and hidden status codes, save filter presets, and tag flows with notes and highlight colours. Any flow can emit a CSRF proof-of-concept form. |
 | **Interception queue** | Pause requests (and optionally responses), edit the raw bytes, then forward or drop them. |
 | **Repeater** | Take any request, tweak it freely, and resend it as many times as you like — each tab keeps its own send history, and a line diff compares a response with the previous send. |
-| **Intruder / fuzzer** | Automated payload injection with four attack types (sniper, battering ram, pitchfork, cluster bomb), concurrency control and grep-match highlighting. Payload sets come from a list or a generated numeric range, with per-set processors (URL/base64 encode, upper/lower, MD5/SHA-1/SHA-256). |
+| **Comparer** | Compare any two texts side by side: two responses, two requests, or pasted payloads — load either side straight from a history flow. |
+| **JWT workbench** | Decode a token, edit its payload, re-sign it (HS256/384/512) or strip it to `none`, and verify against a secret. |
+| **Intruder / fuzzer** | Automated payload injection with four attack types (sniper, battering ram, pitchfork, cluster bomb), concurrency control, inter-request delay, pause/resume, grep-match highlighting and grep-extract harvesting. Positions are marked with the `FUZZ` keyword; payload sets come from a list or a generated numeric range, with per-set processors (URL/base64 encode, upper/lower, MD5/SHA-1/SHA-256). Combination space is capped for safety. |
 | **Targets** | Set in the **Scanner** tab: the hosts you may test (exact, parent-domain or `*.` wildcard; pasting a URL works). Active scans, site scans and the AI assistant refuse anything else, while every site is still recorded unless you choose *Only record traffic to targets*. |
 | **Readable bodies** | Browsers ask for `br` and `zstd`, which Kanca can't decode, so it asks servers only for `gzip` and `deflate` and decodes those for display, search, Intruder grep and scanning. |
 | **Site map** | Captured traffic arranged as a per-host tree of URL paths, so you can see a target's structure rather than a flat log. |
 | **Match & replace** | Regex substitutions applied on the wire — rewrite the request line, a header, or the body of outbound requests and inbound responses (Content-Length is kept correct). |
 | **Body search** | Filter the history across request/response bodies, not just method/host/path. |
 | **Passive scanner** | Flags security issues from observed traffic (missing CSP/HSTS/X-Content-Type-Options, insecure cookies, permissive CORS, version disclosure) without sending any extra requests. |
-| **Site scan** | **Scan targets** in the Scanner tab (or **Scan site** on a host in the Site Map) runs the active scanner over every captured request with parameters on your targets, one at a time, with live progress; the findings appear right below. Forms and other state-changing requests are only included when you tick them, since each probe submits them again. |
+| **Site scan** | **Scan targets** in the Scanner tab (or **Scan site** on a host in the Site Map) runs the active scanner over every captured request with parameters on your targets, one at a time, with live progress; the findings appear right below. Forms and other state-changing requests are only included when you tick them, since each probe submits them again; DELETE needs its own opt-in, and query/form/JSON insertion points can be toggled. Findings carry a triage status (new/confirmed/resolved/false-positive). |
 | **Active scanner** | On demand, probes one request's insertion points — query, form-body and JSON-body parameters — for reflected input/XSS, error-based SQL injection, path traversal, open redirect, template injection (SSTI) and CRLF/header injection, restricted to your targets. An opt-in **aggressive** mode adds boolean- and time-based SQLi and time-based command-injection checks (these make the target do observable work). Detection-only: every check compares against a baseline and flags a lead to verify by hand — it never attempts exploitation. |
 | **Save / import / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2 and import HAR captures from other tools. |
 | **WebSocket support** | `ws://` and `wss://` upgrades are bridged transparently (they used to break, since `Upgrade`/`Connection` are stripped as hop-by-hop for ordinary HTTP) with a live, per-connection frame log — hand-rolled RFC 6455 framing, no dependency. |
@@ -265,6 +267,7 @@ kanca/                      core module — pure Go standard library, no deps
 │   ├── scope/              target-scope host matching
 │   ├── mcp/                MCP server for AI assistants (+ stdio bridge)
 │   ├── diff/               line-oriented text diff (repeater response compare)
+│   ├── jwt/                JWT decode/verify/forge (HS256/384/512 and none)
 │   ├── har/                HAR 1.2 export and import
 │   └── project/            save/load a session (flows, rules, findings, scope)
 ├── cmd/kanca/              headless CLI runner (no GUI required)
@@ -352,8 +355,14 @@ drop/edit paths (`internal/proxy/proxy_test.go`).
 
 ## Roadmap
 
-Possible future work: authentication/session handling helpers, a built-in
-wordlist manager, and out-of-band (OAST) interaction detection.
+Shipped recently: request comparer, JWT workbench, finding triage workflow,
+history annotations and filter presets, CSRF PoC generation, Intruder
+pause/resume/delay/extract, FUZZ keyword positions, DELETE opt-in and
+insertion-point toggles for site scans, and richer HAR exports.
+
+Possible future work: authentication/session handling helpers (login macros,
+multi-user contexts), a built-in wordlist manager, spidering/AJAX crawling,
+stored/DOM XSS and SSRF checks, and out-of-band (OAST) interaction detection.
 
 ## License
 

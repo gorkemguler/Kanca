@@ -139,8 +139,12 @@ func (a *App) SetMCPSettings(enabled bool, level string, mask bool) (MCPStatus, 
 // RegenerateMCPToken replaces the token, disconnecting clients that use the
 // old one; Claude Code must be registered again (Claude Desktop needs nothing).
 func (a *App) RegenerateMCPToken() (MCPStatus, error) {
+	tok, err := mcp.NewToken()
+	if err != nil {
+		return a.GetMCPStatus(), err
+	}
 	a.mcpMu.Lock()
-	a.mcpCfg.Token = mcp.NewToken()
+	a.mcpCfg.Token = tok
 	cfg := a.mcpCfg
 	a.mcpMu.Unlock()
 	if err := mcp.SaveConfig(configDir(), cfg); err != nil {

@@ -17,6 +17,9 @@ type Service struct {
 	mu   sync.Mutex
 	http *http.Server
 	addr string
+	// serveErr holds the background Serve failure, if any (a clean Shutdown
+	// reports http.ErrServerClosed and is not stored). Read via ServeErr().
+	serveErr error
 }
 
 // Start listens on addr (which must be a loopback address) and serves /mcp
@@ -25,7 +28,9 @@ func (s *Service) Start(addr, token string) error {
 	if err := requireLoopback(addr); err != nil {
 		return err
 	}
-	_ = s.Stop()
+	if err := s.Stop(); err != nil {
+		return fmt.Errorf("mcp: stop previous endpoint: %w", err)
+	}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("mcp: listen on %s: %w", addr, err)
@@ -35,8 +40,15 @@ func (s *Service) Start(addr, token string) error {
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	s.mu.Lock()
 	s.http, s.addr = srv, ln.Addr().String()
+	s.serveErr = nil
 	s.mu.Unlock()
-	go func() { _ = srv.Serve(ln) }()
+	go func() {
+		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			s.mu.Lock()
+			s.serveErr = err
+			s.mu.Unlock()
+		}
+	}()
 	return nil
 }
 
@@ -59,6 +71,14 @@ func (s *Service) Addr() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.addr
+}
+
+// ServeErr returns the background Serve failure, if the endpoint died outside
+// a clean Stop.
+func (s *Service) ServeErr() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.serveErr
 }
 
 func requireLoopback(addr string) error {

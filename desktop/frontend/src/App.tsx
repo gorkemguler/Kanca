@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, on, FlowView, MCPStatus, ProxyStatus, TrustStatus } from "./lib/api";
 import HistoryView from "./components/HistoryView";
+import ComparerView from "./components/ComparerView";
+import JwtView from "./components/JwtView";
 import InterceptView from "./components/InterceptView";
 import RepeaterView from "./components/RepeaterView";
 import IntruderView from "./components/IntruderView";
@@ -16,6 +18,8 @@ type TabKey =
   | "sitemap"
   | "intercept"
   | "repeater"
+  | "comparer"
+  | "jwt"
   | "intruder"
   | "rules"
   | "findings"
@@ -114,6 +118,8 @@ export default function App() {
     { key: "sitemap", label: "Site Map" },
     { key: "intercept", label: "Intercept", badge: queueCount || undefined },
     { key: "repeater", label: "Repeater" },
+    { key: "comparer", label: "Comparer" },
+    { key: "jwt", label: "JWT" },
     { key: "intruder", label: "Intruder" },
     { key: "rules", label: "Match/Replace" },
     { key: "findings", label: "Scanner" },
@@ -261,6 +267,8 @@ export default function App() {
         {tab === "intruder" && (
           <IntruderView seed={intruderSeed} clearSeed={() => setIntruderSeed(null)} />
         )}
+        {tab === "comparer" && <ComparerView />}
+        {tab === "jwt" && <JwtView />}
         {tab === "rules" && <RulesView />}
         {tab === "findings" && <ScannerView onOpenFlow={openFlow} />}
         {tab === "websocket" && <WebSocketView />}

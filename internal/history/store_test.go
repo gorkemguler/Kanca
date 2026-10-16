@@ -123,3 +123,26 @@ func TestBodySearchLooksInsideCompressedResponses(t *testing.T) {
 		t.Fatalf("search should match text inside a gzip response, got %d", len(got))
 	}
 }
+
+func TestAnnotateSetsAndClears(t *testing.T) {
+	s := New(10)
+	f := &proxy.Flow{ID: 42, Method: "GET", Host: "x", Path: "/"}
+	s.Add(f)
+	if !s.Annotate(42, "look here", "red") {
+		t.Fatal("Annotate returned false for a known flow")
+	}
+	got, _ := s.Get(42)
+	if got.Comment != "look here" || got.Highlight != "red" {
+		t.Fatalf("annotation lost: %+v", got)
+	}
+	if !s.Annotate(42, "", "") {
+		t.Fatal("Annotate clear returned false")
+	}
+	got, _ = s.Get(42)
+	if got.Comment != "" || got.Highlight != "" {
+		t.Fatalf("annotation not cleared: %+v", got)
+	}
+	if s.Annotate(999, "x", "") {
+		t.Fatal("Annotate accepted an unknown ID")
+	}
+}

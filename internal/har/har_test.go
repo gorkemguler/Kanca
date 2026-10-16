@@ -173,3 +173,71 @@ func TestUnmarshalSkipsPseudoHeaders(t *testing.T) {
 		t.Fatalf("normal header lost: %q", raw)
 	}
 }
+
+func TestMarshalFillsQueryCookiesSizes(t *testing.T) {
+	reqH := http.Header{"Cookie": {"a=1; b=two"}, "Content-Type": {"application/x-www-form-urlencoded"}}
+	respH := http.Header{"Content-Type": {"text/html"}, "Set-Cookie": {"sid=abc; Path=/; HttpOnly", "x=1; Secure"}}
+	f := &proxy.Flow{
+		ID: 1, Scheme: "https", Method: "POST", Host: "ex.test:443",
+		Path: "/s?q=hi&page=2", URL: "https://ex.test:443/s?q=hi&page=2",
+		StatusCode: 200, Duration: 42, Started: time.Unix(1700000000, 0).UTC(),
+		Request:  proxy.Message{Raw: []byte("POST /s HTTP/1.1\r\n\r\nemail=a%40b.com&x=1"), Headers: reqH, Body: []byte("email=a%40b.com&x=1")},
+		Response: proxy.Message{Raw: []byte("HTTP/1.1 200 OK\r\n\r\nhello"), Headers: respH, Body: []byte("hello")},
+	}
+	out, err := Marshal([]*proxy.Flow{f}, "t")
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var parsed struct {
+		Log struct {
+			Entries []struct {
+				Time    int64 `json:"time"`
+				Timings struct {
+					Wait int64 `json:"wait"`
+				} `json:"timings"`
+				Request struct {
+					QueryString []struct {
+						Name, Value string
+					} `json:"queryString"`
+					Cookies []struct {
+						Name, Value string
+					} `json:"cookies"`
+					HeadersSize int `json:"headersSize"`
+					PostData    struct {
+						Params []struct {
+							Name, Value string
+						} `json:"params"`
+					} `json:"postData"`
+				} `json:"request"`
+				Response struct {
+					Cookies []struct {
+						Name, Value string
+					} `json:"cookies"`
+					HeadersSize int `json:"headersSize"`
+				} `json:"response"`
+			} `json:"entries"`
+		} `json:"log"`
+	}
+	if err := json.Unmarshal(out, &parsed); err != nil {
+		t.Fatalf("reparse: %v", err)
+	}
+	e := parsed.Log.Entries[0]
+	if e.Time != 42 || e.Timings.Wait != 42 {
+		t.Fatalf("timings lost: %+v", e)
+	}
+	if len(e.Request.QueryString) != 2 || e.Request.QueryString[0].Name != "page" {
+		t.Fatalf("queryString wrong: %+v", e.Request.QueryString)
+	}
+	if len(e.Request.Cookies) != 2 || e.Request.Cookies[0].Value != "1" {
+		t.Fatalf("request cookies wrong: %+v", e.Request.Cookies)
+	}
+	if len(e.Request.PostData.Params) != 2 || e.Request.PostData.Params[0].Value != "a@b.com" {
+		t.Fatalf("post params wrong: %+v", e.Request.PostData.Params)
+	}
+	if len(e.Response.Cookies) != 2 || e.Response.Cookies[0].Name != "sid" {
+		t.Fatalf("response cookies wrong: %+v", e.Response.Cookies)
+	}
+	if e.Request.HeadersSize != len("POST /s HTTP/1.1\r\n\r\n") || e.Response.HeadersSize != len("HTTP/1.1 200 OK\r\n\r\n") {
+		t.Fatalf("header sizes wrong: %d / %d", e.Request.HeadersSize, e.Response.HeadersSize)
+	}
+}

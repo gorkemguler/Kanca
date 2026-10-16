@@ -35,7 +35,19 @@ type Finding struct {
 	// Source is "ai" for findings an AI assistant recorded through the MCP
 	// endpoint; empty for Kanca's own scanners.
 	Source string `json:"source,omitempty"`
+	// Status is the operator's triage state. Empty means "new".
+	Status Status `json:"status,omitempty"`
 }
+
+// Status is a finding's triage state in the findings workflow.
+type Status string
+
+const (
+	StatusNew       Status = "new"
+	StatusConfirmed Status = "confirmed"
+	StatusResolved  Status = "resolved"
+	StatusFalsePos  Status = "false-positive"
+)
 
 // Scanner accumulates de-duplicated findings across inspected flows.
 type Scanner struct {
@@ -66,7 +78,8 @@ type candidate struct {
 }
 
 // Inspect runs the passive checks against a completed flow and records any new
-// findings (deduplicated per host + title).
+// findings (deduplicated per severity + title + host + URL, so the same issue
+// on two paths records two findings).
 func (s *Scanner) Inspect(f *proxy.Flow) {
 	if f == nil || f.Error != "" || f.StatusCode == 0 {
 		return
@@ -80,7 +93,7 @@ func (s *Scanner) Inspect(f *proxy.Flow) {
 	s.mu.Lock()
 	var fresh []Finding
 	for _, c := range cands {
-		key := string(c.sev) + "|" + c.title + "|" + host
+		key := dedupKey(c.sev, c.title, host, f.URL)
 		if s.seen[key] {
 			continue
 		}
@@ -106,10 +119,10 @@ func (s *Scanner) Inspect(f *proxy.Flow) {
 // Add records an externally-produced finding (e.g. from the active scanner)
 // through the same dedup pipeline as passive checks, so it appears in the same
 // list and fires OnFinding. The finding's ID is assigned here. It returns
-// false when a matching finding (same severity, title and host) already exists.
+// false when a matching finding (same severity, title, host and URL) already exists.
 func (s *Scanner) Add(f Finding) bool {
 	host := hostOnly(f.Host)
-	key := string(f.Severity) + "|" + f.Title + "|" + host
+	key := dedupKey(f.Severity, f.Title, host, f.URL)
 
 	s.mu.Lock()
 	if s.seen[key] {
@@ -139,6 +152,32 @@ func (s *Scanner) Findings() []Finding {
 		out[i] = *f
 	}
 	return out
+}
+
+// SetStatus moves a finding through the triage workflow. Empty status means
+// "new". It returns false for unknown IDs or invalid statuses.
+func (s *Scanner) SetStatus(id int64, st Status) bool {
+	switch st {
+	case "", StatusNew, StatusConfirmed, StatusResolved, StatusFalsePos:
+	default:
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, f := range s.findings {
+		if f.ID == id {
+			f.Status = st
+			return true
+		}
+	}
+	return false
+}
+
+// dedupKey identifies "the same issue": severity + title + host + URL, so the
+// same missing header on two different paths records two findings instead of
+// collapsing into one.
+func dedupKey(sev Severity, title, host, url string) string {
+	return string(sev) + "|" + title + "|" + host + "|" + url
 }
 
 // Clear discards all findings and dedup state.
