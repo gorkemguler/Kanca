@@ -2,7 +2,9 @@ package project
 
 import (
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,5 +73,47 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 	if got.Request.Headers.Get("User-Agent") != "kanca" {
 		t.Fatalf("request headers lost: %v", got.Request.Headers)
+	}
+}
+
+func TestLoadRejectsUnknownVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "weird.kanca.json")
+	if err := Save(path, File{Flows: []FlowDTO{}}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	// Rewrite with a foreign version marker.
+	rewritten := strings.Replace(string(data), `"version": "1"`, `"version": "v99-foreign"`, 1)
+	if rewritten == string(data) {
+		t.Fatal("version stamp not found in saved file")
+	}
+	if err := os.WriteFile(path, []byte(rewritten), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("Load accepted a foreign version, want an error")
+	}
+	// A newer major ("2") must also fail, while the 0.x/1.x lineage loads.
+	for _, v := range []string{"2", "10.0"} {
+		rewritten2 := strings.Replace(string(data), `"version": "1"`, `"version": "`+v+`"`, 1)
+		if err := os.WriteFile(path, []byte(rewritten2), 0o600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		if _, err := Load(path); err == nil {
+			t.Fatalf("Load accepted newer-major version %q, want an error", v)
+		}
+	}
+}
+
+func TestLoadRejectsGarbage(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "garbage.kanca.json")
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("Load accepted garbage, want an error")
 	}
 }

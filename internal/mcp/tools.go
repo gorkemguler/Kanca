@@ -107,8 +107,12 @@ var toolDefs = []tool{
 		Name: "active_scan", Title: "Run Kanca's active scanner",
 		Description: "Probe one captured request's parameters for reflected XSS, SQL injection, path traversal, open redirect, template injection and CRLF injection. aggressive adds boolean/time-based SQL injection and command injection checks, which make the target do work. Each probe counts against the session's request budget (a scan sends from a few to a few hundred requests, depending on the parameters). Findings are added to Kanca and returned.",
 		InputSchema: obj(map[string]any{
-			"flow_id":    map[string]any{"type": "integer"},
-			"aggressive": map[string]any{"type": "boolean", "description": "Default false."},
+			"flow_id":        map[string]any{"type": "integer"},
+			"aggressive":     map[string]any{"type": "boolean", "description": "Default false."},
+			"skip_query":     map[string]any{"type": "boolean", "description": "Skip query-string parameters. Default false."},
+			"skip_body":      map[string]any{"type": "boolean", "description": "Skip form-body parameters. Default false."},
+			"skip_json":      map[string]any{"type": "boolean", "description": "Skip JSON-body fields. Default false."},
+			"include_delete": map[string]any{"type": "boolean", "description": "Also probe DELETE requests. Default false."},
 		}, "flow_id"),
 		Annotations: prober,
 	},
@@ -577,8 +581,12 @@ func normalizeRaw(raw string) []byte {
 
 func (s *Server) activeScan(args json.RawMessage) toolResult {
 	var a struct {
-		FlowID     int64 `json:"flow_id"`
-		Aggressive bool  `json:"aggressive"`
+		FlowID        int64 `json:"flow_id"`
+		Aggressive    bool  `json:"aggressive"`
+		SkipQuery     bool  `json:"skip_query"`
+		SkipBody      bool  `json:"skip_body"`
+		SkipJSON      bool  `json:"skip_json"`
+		IncludeDelete bool  `json:"include_delete"`
 	}
 	if err := json.Unmarshal(args, &a); err != nil {
 		return errorResult("invalid arguments: %v", err)
@@ -589,6 +597,9 @@ func (s *Server) activeScan(args json.RawMessage) toolResult {
 	}
 	if msg, ok := s.allowed(f.Host); !ok {
 		return errorResult("%s", msg)
+	}
+	if strings.EqualFold(f.Method, "DELETE") && !a.IncludeDelete {
+		return errorResult("DELETE requests are only scanned with include_delete=true, since each probe repeats the deletion")
 	}
 	// Every probe counts against the session's request budget.
 	limit := s.budget(s.opts())
@@ -609,6 +620,7 @@ func (s *Server) activeScan(args json.RawMessage) toolResult {
 	found, err := activescan.Run(ctx, activescan.Config{
 		Scheme: f.Scheme, Host: f.Host, Raw: f.Request.Raw,
 		InsecureUpstream: true, Aggressive: a.Aggressive, BeforeSend: beforeSend,
+		SkipQuery: a.SkipQuery, SkipBody: a.SkipBody, SkipJSON: a.SkipJSON,
 	})
 	if err != nil {
 		if stopped {

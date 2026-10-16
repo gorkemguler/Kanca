@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gorkemguler/kanca/internal/activescan"
+	"github.com/gorkemguler/kanca/internal/proxy"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -33,17 +34,39 @@ type SiteScanDone struct {
 	Scanned int    `json:"scanned"`
 	Found   int    `json:"found"`
 	Stopped bool   `json:"stopped"`
+	// Errors counts requests whose probes failed to run (network/target
+	// errors); ErrorSample holds the first one for display.
+	Errors      int    `json:"errors"`
+	ErrorSample string `json:"errorSample,omitempty"`
+}
+
+// SiteScanOptions tunes ScanSite from the UI.
+type SiteScanOptions struct {
+	// IncludeUnsafe adds state-changing requests (each probe repeats them).
+	IncludeUnsafe bool `json:"includeUnsafe"`
+	// IncludeDelete adds DELETE requests (as unsafe). Off by default.
+	IncludeDelete bool `json:"includeDelete"`
+	// Aggressive adds boolean/time SQLi and time command-injection probes.
+	Aggressive bool `json:"aggressive"`
+	// SkipQuery/SkipBody/SkipJSON restrict insertion points.
+	SkipQuery bool `json:"skipQuery"`
+	SkipBody  bool `json:"skipBody"`
+	SkipJSON  bool `json:"skipJson"`
 }
 
 // PlanSiteScan counts the captured requests a scan would probe: on host
 // (host:port, as the site map shows it), which must be a target, or on every
-// target when host is "".
-func (a *App) PlanSiteScan(host string) (SiteScanPlan, error) {
+// target when host is "". The same options as ScanSite apply, so the preview
+// matches what ScanSite would probe.
+func (a *App) PlanSiteScan(host string, opts SiteScanOptions) (SiteScanPlan, error) {
 	include, err := a.scanFilter(host)
 	if err != nil {
 		return SiteScanPlan{Host: host}, err
 	}
-	p := activescan.PlanSite(a.store.Snapshot(), include)
+	p := activescan.PlanSite(a.store.Snapshot(), include, activescan.SiteOptions{
+		IncludeDelete: opts.IncludeDelete,
+		SkipQuery:     opts.SkipQuery, SkipBody: opts.SkipBody, SkipJSON: opts.SkipJSON,
+	})
 	return SiteScanPlan{Host: host, Safe: len(p.Safe), Unsafe: len(p.Unsafe)}, nil
 }
 
@@ -65,16 +88,23 @@ func (a *App) scanFilter(host string) (func(authority string) bool, error) {
 // ScanSite actively scans every captured request with parameters on host, or
 // on every target when host is "", one at a time in the background, adding
 // what it finds to Findings. Forms and other state-changing requests are
-// included only with includeUnsafe, since each probe repeats them. Progress
-// arrives as sitescan:progress events, then sitescan:done.
-func (a *App) ScanSite(host string, includeUnsafe, aggressive bool) error {
+// included only with opts.IncludeUnsafe, DELETE only with opts.IncludeDelete,
+// since each probe repeats them. Progress arrives as sitescan:progress events,
+// then sitescan:done.
+func (a *App) ScanSite(host string, opts SiteScanOptions) error {
 	include, err := a.scanFilter(host)
 	if err != nil {
 		return err
 	}
-	plan := activescan.PlanSite(a.store.Snapshot(), include)
-	flows := plan.Safe
-	if includeUnsafe {
+	plan := activescan.PlanSite(a.store.Snapshot(), include, activescan.SiteOptions{
+		IncludeDelete: opts.IncludeDelete,
+		SkipQuery:     opts.SkipQuery, SkipBody: opts.SkipBody, SkipJSON: opts.SkipJSON,
+	})
+	// Copy: appending Unsafe onto plan.Safe directly could write into the
+	// plan's backing array.
+	flows := make([]*proxy.Flow, len(plan.Safe))
+	copy(flows, plan.Safe)
+	if opts.IncludeUnsafe {
 		flows = append(flows, plan.Unsafe...)
 	}
 	if len(flows) == 0 {
@@ -88,17 +118,18 @@ func (a *App) ScanSite(host string, includeUnsafe, aggressive bool) error {
 		cancel()
 		return errors.New("a site scan is already running")
 	}
-	a.siteScanCancel = cancel
+	a.siteScanCancel, a.siteScanStopped = cancel, false
 	a.siteScanMu.Unlock()
 
 	go func() {
 		defer func() {
 			a.siteScanMu.Lock()
-			a.siteScanCancel, a.siteScanLast = nil, nil
+			a.siteScanCancel, a.siteScanLast, a.siteScanStopped = nil, nil, false
 			a.siteScanMu.Unlock()
 			cancel()
 		}()
-		scanned, found := 0, 0
+		scanned, found, scanErrs := 0, 0, 0
+		var errSample string
 		for _, f := range flows {
 			if ctx.Err() != nil {
 				break
@@ -106,10 +137,17 @@ func (a *App) ScanSite(host string, includeUnsafe, aggressive bool) error {
 			a.setSiteScanProgress(&SiteScanProgress{
 				Host: host, Done: scanned, Total: len(flows), Current: f.Method + " " + f.Path, Found: found,
 			})
-			res, _ := activescan.Run(ctx, activescan.Config{
+			res, runErr := activescan.Run(ctx, activescan.Config{
 				Scheme: f.Scheme, Host: f.Host, Raw: f.Request.Raw,
-				InsecureUpstream: true, Aggressive: aggressive,
+				InsecureUpstream: true, Aggressive: opts.Aggressive,
+				SkipQuery: opts.SkipQuery, SkipBody: opts.SkipBody, SkipJSON: opts.SkipJSON,
 			})
+			if runErr != nil {
+				scanErrs++
+				if errSample == "" {
+					errSample = runErr.Error()
+				}
+			}
 			for _, fnd := range res {
 				fnd.FlowID = f.ID
 				if a.scanner.Add(fnd) {
@@ -117,8 +155,14 @@ func (a *App) ScanSite(host string, includeUnsafe, aggressive bool) error {
 				}
 			}
 			scanned++
+			a.setSiteScanProgress(&SiteScanProgress{
+				Host: host, Done: scanned, Total: len(flows), Current: f.Method + " " + f.Path, Found: found,
+			})
 		}
-		a.emit("sitescan:done", SiteScanDone{Host: host, Scanned: scanned, Found: found, Stopped: ctx.Err() != nil})
+		a.siteScanMu.Lock()
+		stopped := a.siteScanStopped || ctx.Err() != nil
+		a.siteScanMu.Unlock()
+		a.emit("sitescan:done", SiteScanDone{Host: host, Scanned: scanned, Found: found, Stopped: stopped, Errors: scanErrs, ErrorSample: errSample})
 	}()
 	return nil
 }
@@ -147,6 +191,7 @@ func (a *App) StopSiteScan() {
 	a.siteScanMu.Lock()
 	defer a.siteScanMu.Unlock()
 	if a.siteScanCancel != nil {
+		a.siteScanStopped = true
 		a.siteScanCancel()
 	}
 }

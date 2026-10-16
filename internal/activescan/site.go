@@ -15,10 +15,22 @@ import (
 type SitePlan struct {
 	// Safe holds GET and HEAD requests, which only read.
 	Safe []*proxy.Flow
-	// Unsafe holds requests that change state (POST, PUT, PATCH). Probing one
-	// repeats its action for every payload (e.g. sends a contact form again),
-	// so callers include them only when asked. DELETE is never planned.
+	// Unsafe holds requests that change state (POST, PUT, PATCH and, when
+	// opted in, DELETE). Probing one repeats its action for every payload
+	// (e.g. sends a contact form again), so callers include them only when
+	// asked.
 	Unsafe []*proxy.Flow
+}
+
+// SiteOptions tunes PlanSite.
+type SiteOptions struct {
+	// IncludeDelete plans DELETE requests (as unsafe). Off by default: a
+	// probe never deletes anything unless the operator explicitly asks.
+	IncludeDelete bool
+	// SkipQuery/SkipBody/SkipJSON drop those insertion points from planning.
+	SkipQuery bool
+	SkipBody  bool
+	SkipJSON  bool
 }
 
 // staticExt are file types whose parameters are cache busters, not input.
@@ -31,7 +43,7 @@ var staticExt = map[string]bool{
 
 // PlanSite picks the requests worth probing among flows whose authority
 // (host:port, as flows record it) include accepts, oldest first.
-func PlanSite(flows []*proxy.Flow, include func(authority string) bool) SitePlan {
+func PlanSite(flows []*proxy.Flow, include func(authority string) bool, opts SiteOptions) SitePlan {
 	var plan SitePlan
 	seen := map[string]bool{}
 	for _, f := range flows {
@@ -39,14 +51,17 @@ func PlanSite(flows []*proxy.Flow, include func(authority string) bool) SitePlan
 			continue
 		}
 		method := strings.ToUpper(f.Method)
-		if method == http.MethodDelete || method == http.MethodOptions || method == http.MethodConnect || method == http.MethodTrace {
+		if method == http.MethodOptions || method == http.MethodConnect || method == http.MethodTrace {
+			continue
+		}
+		if method == http.MethodDelete && !opts.IncludeDelete {
 			continue
 		}
 		req, err := proxy.ParseRawRequest(f.Request.Raw, f.Scheme, f.Host)
 		if err != nil || staticExt[strings.ToLower(path.Ext(req.URL.Path))] {
 			continue
 		}
-		points := collectPoints(req, readBody(req), 50)
+		points := filterPoints(collectPoints(req, readBody(req), 50), opts.SkipQuery, opts.SkipBody, opts.SkipJSON)
 		if len(points) == 0 {
 			continue
 		}

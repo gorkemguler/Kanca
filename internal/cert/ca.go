@@ -233,8 +233,19 @@ func (a *Authority) newLeaf(host string) (*tls.Certificate, error) {
 	return &tls.Certificate{
 		Certificate: [][]byte{der, a.rootCert.Raw},
 		PrivateKey:  a.leafKey,
-		Leaf:        mustParse(der),
+		Leaf:        parseLeaf(der),
 	}, nil
+}
+
+// parseLeaf parses a just-created leaf certificate. A failure here would be
+// an internal bug; instead of panicking, the TLS handshake proceeds without
+// a cached Leaf and crypto/tls parses it on demand.
+func parseLeaf(der []byte) *x509.Certificate {
+	c, err := x509.ParseCertificate(der)
+	if err != nil {
+		return nil
+	}
+	return c
 }
 
 // nextSerial derives a deterministic-yet-unique serial number. Callers hold
@@ -266,15 +277,6 @@ func marshalECKey(key *ecdsa.PrivateKey) ([]byte, error) {
 		return nil, fmt.Errorf("cert: marshal key: %w", err)
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}), nil
-}
-
-func mustParse(der []byte) *x509.Certificate {
-	c, err := x509.ParseCertificate(der)
-	if err != nil {
-		// A certificate we just created must parse; a failure here is a bug.
-		panic("cert: parse just-created leaf: " + err.Error())
-	}
-	return c
 }
 
 // normalizeHost strips a trailing port and lowercases the host so cache keys

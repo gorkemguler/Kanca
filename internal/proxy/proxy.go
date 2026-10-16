@@ -49,6 +49,9 @@ type Proxy struct {
 	listener net.Listener
 	server   *http.Server
 	running  bool
+	// serveErr holds the background Serve failure, if any (a clean Shutdown
+	// reports http.ErrServerClosed and is not stored). Read via ServeErr().
+	serveErr error
 
 	// onFlow is called once per completed transaction. May be nil.
 	onFlowMu sync.RWMutex
@@ -214,6 +217,14 @@ func (p *Proxy) emit(f *Flow) {
 // Addr returns the address the proxy is (or will be) listening on.
 func (p *Proxy) Addr() string { return p.cfg.Addr }
 
+// ServeErr returns the background listener failure, if the server died
+// outside a clean Stop.
+func (p *Proxy) ServeErr() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.serveErr
+}
+
 // Start binds the listener and serves in a background goroutine. It returns
 // once the socket is accepting connections.
 func (p *Proxy) Start() error {
@@ -234,8 +245,13 @@ func (p *Proxy) Start() error {
 		WriteTimeout: 0,
 	}
 	p.running = true
+	p.serveErr = nil
 	go func() {
-		_ = p.server.Serve(ln)
+		if err := p.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			p.mu.Lock()
+			p.serveErr = err
+			p.mu.Unlock()
+		}
 	}()
 	return nil
 }
@@ -423,7 +439,7 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 	host := hostOnly(authority)
 	recording := p.hostInScope(host)
 
-	reqBody, _ := captureBody(&req.Body)
+	reqBody, reqBodyErr := captureBody(&req.Body)
 	LimitAcceptEncoding(req.Header)
 	rawReq := requestToRaw(req, reqBody)
 
@@ -431,7 +447,11 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 	if rewritten := p.applyRewrite("request", host, rawReq); !bytes.Equal(rewritten, rawReq) {
 		if edited, err := rawToRequest(rewritten, scheme, authority); err == nil {
 			req = edited
-			reqBody, _ = captureBody(&req.Body)
+			if eb, err := captureBody(&req.Body); err == nil {
+				reqBody = eb
+			} else if reqBodyErr == nil {
+				reqBodyErr, reqBody = err, eb
+			}
 			rawReq = rewritten
 		}
 	}
@@ -449,7 +469,11 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 		edited, err := rawToRequest(res.EditedRaw, scheme, authority)
 		if err == nil {
 			req = edited
-			reqBody, _ = captureBody(&req.Body)
+			if eb, err := captureBody(&req.Body); err == nil {
+				reqBody = eb
+			} else if reqBodyErr == nil {
+				reqBodyErr, reqBody = err, eb
+			}
 			rawReq = res.EditedRaw
 		}
 	}
@@ -464,11 +488,20 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 		Started: start,
 		Request: Message{Raw: rawReq, Headers: req.Header.Clone(), Body: reqBody, ContentLength: int64(len(reqBody))},
 	}
+	if reqBodyErr != nil {
+		// Errored (e.g. truncated) bodies are still forwarded, but the flow
+		// is marked: scanner.Inspect skips errored flows by design.
+		f.Error = "request body: " + reqBodyErr.Error()
+	}
 
 	outReq := prepareOutbound(req, reqBody)
 	resp, err := p.transport.RoundTrip(outReq)
 	if err != nil {
-		f.Error = err.Error()
+		if f.Error != "" {
+			f.Error += "; transport: " + err.Error()
+		} else {
+			f.Error = err.Error()
+		}
 		f.Duration = time.Since(start).Milliseconds()
 		if recording {
 			p.emit(f)
@@ -476,15 +509,20 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 		return f
 	}
 
-	respBody, _ := captureBody(&resp.Body)
+	respBody, respBodyErr := captureBody(&resp.Body)
+	if respBodyErr != nil && f.Error == "" {
+		f.Error = "response body: " + respBodyErr.Error()
+	}
 	rawResp := responseToRaw(resp, respBody)
 
 	// Match-and-replace on the inbound response.
 	if rewritten := p.applyRewrite("response", host, rawResp); !bytes.Equal(rewritten, rawResp) {
 		if edited, perr := rawToResponse(rewritten, outReq); perr == nil {
-			eb, _ := captureBody(&edited.Body)
-			resp = edited
-			respBody = eb
+			eb, cerr := captureBody(&edited.Body)
+			resp, respBody = edited, eb
+			if cerr != nil && f.Error == "" {
+				f.Error = "response body: " + cerr.Error()
+			}
 			rawResp = rewritten
 		}
 	}
@@ -496,9 +534,11 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 	}
 	if res.EditedRaw != nil {
 		if edited, perr := rawToResponse(res.EditedRaw, outReq); perr == nil {
-			eb, _ := captureBody(&edited.Body)
-			resp = edited
-			respBody = eb
+			eb, cerr := captureBody(&edited.Body)
+			resp, respBody = edited, eb
+			if cerr != nil && f.Error == "" {
+				f.Error = "response body: " + cerr.Error()
+			}
 			rawResp = res.EditedRaw
 		}
 	}

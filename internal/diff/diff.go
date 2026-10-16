@@ -36,11 +36,28 @@ type Result struct {
 	Stats Stats  `json:"stats"`
 }
 
+// Bounds for Lines: the LCS table costs O(n*m) memory, so inputs are capped
+// before the table is built. Diffing truncated prefixes is still useful for
+// spotting response differences, and the marker line says so.
+const (
+	maxDiffBytes = 2 << 20 // per input
+	maxDiffCells = 4_000_000
+)
+
+const truncatedMarker = "[... diff truncated: input exceeds safe comparison size ...]"
+
 // Lines computes the line diff between a and b. Inputs are split on "\n" with
 // a trailing "\r" trimmed so CRLF and LF texts compare cleanly.
 func Lines(a, b string) Result {
+	a = cutToLineBoundary(a, maxDiffBytes)
+	b = cutToLineBoundary(b, maxDiffBytes)
 	as := splitLines(a)
 	bs := splitLines(b)
+
+	if clipped := clipToCells(&as, &bs); clipped {
+		as = append(as, truncatedMarker)
+		bs = append(bs, truncatedMarker)
+	}
 
 	// LCS length table.
 	n, m := len(as), len(bs)
@@ -99,4 +116,35 @@ func splitLines(s string) []string {
 		parts[i] = strings.TrimSuffix(p, "\r")
 	}
 	return parts
+}
+
+// CapInput truncates s to max bytes at a line boundary, so UI callers can
+// bound a diff input without splitting a line (or UTF-8 sequence) mid-way.
+func CapInput(s string, max int) string { return cutToLineBoundary(s, max) }
+
+// cutToLineBoundary caps s at max bytes without splitting a line (or a UTF-8
+// sequence mid-line, since the cut lands on a "\n").
+func cutToLineBoundary(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	if i := strings.LastIndex(s[:max], "\n"); i >= 0 {
+		return s[:i+1]
+	}
+	return s[:max]
+}
+
+// clipToCells shrinks the longer side until len(as)*len(bs) fits maxDiffCells
+// (or a side drops to 100 lines). It reports whether anything was cut.
+func clipToCells(as, bs *[]string) bool {
+	clipped := false
+	for len(*as)*len(*bs) > maxDiffCells && (len(*as) > 100 || len(*bs) > 100) {
+		if len(*as) >= len(*bs) {
+			*as = (*as)[:len(*as)/2]
+		} else {
+			*bs = (*bs)[:len(*bs)/2]
+		}
+		clipped = true
+	}
+	return clipped
 }

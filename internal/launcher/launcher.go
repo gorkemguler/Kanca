@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -182,14 +183,29 @@ func Args(o Options) []string {
 
 // Launch starts b with the options and returns once the process has started.
 func Launch(b Browser, o Options) error {
+	if o.ProfileDir == "" {
+		return errors.New("launcher: ProfileDir is required")
+	}
+	if o.ProxyAddr == "" {
+		return errors.New("launcher: ProxyAddr is required")
+	}
+	if b.Path == "" {
+		return errors.New("launcher: browser path is empty")
+	}
 	if err := os.MkdirAll(o.ProfileDir, 0o700); err != nil {
 		return err
 	}
 	cmd := exec.Command(b.Path, Args(o)...)
 	if err := cmd.Start(); err != nil {
-		return err
+		return fmt.Errorf("launcher: start %s: %w", b.Path, err)
 	}
-	go func() { _ = cmd.Wait() }() // reap the process when the user closes it
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			// The browser exited uncleanly; nothing to report it to here, so
+			// the error is intentionally dropped after reaping the process.
+			_ = err
+		}
+	}()
 	return nil
 }
 
@@ -227,6 +243,9 @@ func SPKIHashes(certs ...*x509.Certificate) string {
 
 // Reveal opens dir in the platform file manager.
 func Reveal(dir string) error {
+	if dir == "" {
+		return errors.New("launcher: Reveal needs a directory")
+	}
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":

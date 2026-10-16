@@ -45,6 +45,8 @@ type App struct {
 
 	attackMu     sync.Mutex
 	attackCancel context.CancelFunc
+	// attack is the running attack, kept so the UI can pause/resume it.
+	attack *intruder.Attack
 
 	scopeMu      sync.Mutex
 	scopeEnabled bool // record only target traffic
@@ -53,6 +55,13 @@ type App struct {
 	siteScanMu     sync.Mutex
 	siteScanCancel context.CancelFunc
 	siteScanLast   *SiteScanProgress
+	// siteScanStopped is set by StopSiteScan so the done event can tell an
+	// explicit stop apart from a clean finish.
+	siteScanStopped bool
+
+	// activeScanMu guards one cancellable single-flow scan per flow ID.
+	activeScanMu     sync.Mutex
+	activeScanCancel map[int64]*activeScanHandle
 
 	rules   *rules.Set
 	scanner *scanner.Scanner
@@ -65,6 +74,12 @@ type App struct {
 	mcpErr string
 }
 
+// activeScanHandle identifies one single-flow scan so a stale completion
+// cannot forget its replacement.
+type activeScanHandle struct {
+	cancel context.CancelFunc
+}
+
 // NewApp constructs the application backend, loading (or creating) the root CA.
 func NewApp() (*App, error) {
 	dir := configDir()
@@ -73,13 +88,14 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 	return &App{
-		ca:      ca,
-		store:   history.New(0),
-		rep:     repeater.New(true),
-		addr:    "127.0.0.1:8080",
-		rules:   rules.NewSet(),
-		scanner: scanner.New(),
-		ws:      newWSStore(),
+		ca:               ca,
+		store:            history.New(0),
+		rep:              repeater.New(true),
+		addr:             "127.0.0.1:8080",
+		rules:            rules.NewSet(),
+		scanner:          scanner.New(),
+		ws:               newWSStore(),
+		activeScanCancel: map[int64]*activeScanHandle{},
 	}, nil
 }
 
@@ -314,8 +330,23 @@ func (a *App) rulesRewriter() func(phase, host string, raw []byte) []byte {
 // GetFindings returns all passive scanner findings.
 func (a *App) GetFindings() []scanner.Finding { return a.scanner.Findings() }
 
+// SetFindingStatus moves a finding through the triage workflow
+// (new/confirmed/resolved/false-positive).
+func (a *App) SetFindingStatus(id int64, status string) error {
+	if !a.scanner.SetStatus(id, scanner.Status(status)) {
+		return fmt.Errorf("finding %d not found or invalid status %q", id, status)
+	}
+	return nil
+}
+
 // ClearFindings discards recorded findings.
 func (a *App) ClearFindings() { a.scanner.Clear() }
+
+// ActiveScanDone is emitted as "activescan:done" when a single-flow scan ends.
+type ActiveScanDone struct {
+	FlowID  int64  `json:"flowId"`
+	Message string `json:"message"`
+}
 
 // ActiveScan runs a bounded set of probes against a single captured request and
 // merges any findings into the Findings list. Only targets may be scanned.
@@ -338,8 +369,24 @@ func (a *App) ActiveScan(flowID int64, aggressive bool) error {
 		InsecureUpstream: true,
 		Aggressive:       aggressive,
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	h := &activeScanHandle{cancel: cancel}
+	a.activeScanMu.Lock()
+	if prev := a.activeScanCancel[flowID]; prev != nil {
+		prev.cancel()
+	}
+	a.activeScanCancel[flowID] = h
+	a.activeScanMu.Unlock()
 	go func() {
-		findings, err := activescan.Run(context.Background(), cfg)
+		defer func() {
+			a.activeScanMu.Lock()
+			if a.activeScanCancel[flowID] == h {
+				delete(a.activeScanCancel, flowID)
+			}
+			a.activeScanMu.Unlock()
+			cancel()
+		}()
+		findings, err := activescan.Run(ctx, cfg)
 		for _, fnd := range findings {
 			fnd.FlowID = flowID
 			a.scanner.Add(fnd)
@@ -348,11 +395,23 @@ func (a *App) ActiveScan(flowID int64, aggressive bool) error {
 			msg := ""
 			if err != nil {
 				msg = err.Error()
+			} else if ctx.Err() != nil {
+				msg = "stopped"
 			}
-			wruntime.EventsEmit(a.ctx, "activescan:done", msg)
+			wruntime.EventsEmit(a.ctx, "activescan:done", ActiveScanDone{FlowID: flowID, Message: msg})
 		}
 	}()
 	return nil
+}
+
+// StopActiveScan cancels a running single-flow scan.
+func (a *App) StopActiveScan(flowID int64) {
+	a.activeScanMu.Lock()
+	defer a.activeScanMu.Unlock()
+	if h := a.activeScanCancel[flowID]; h != nil {
+		h.cancel()
+		delete(a.activeScanCancel, flowID)
+	}
 }
 
 // hostOnlyApp strips a port from an authority for scope matching.
@@ -447,7 +506,9 @@ func (a *App) loadProjectFrom(path string) error {
 	for _, fl := range f.FlowList() {
 		a.store.Add(fl)
 	}
-	_ = a.rules.Replace(f.Rules)
+	if err := a.rules.Replace(f.Rules); err != nil {
+		return fmt.Errorf("load project rules: %w", err)
+	}
 	a.SetScope(ScopeConfig{Enabled: f.ScopeOn, Hosts: f.ScopeHosts})
 	if a.ctx != nil {
 		wruntime.EventsEmit(a.ctx, "project:loaded", len(f.Flows))
@@ -494,22 +555,42 @@ func (a *App) GetSiteMap() []*sitemap.Node {
 
 // ---- Diff -------------------------------------------------------------------
 
+// maxDiffInputBytes caps each side of a UI diff so a huge response cannot
+// stall the desktop thread (diff.Lines caps the comparison itself too).
+const maxDiffInputBytes = 2 << 20
+
 // DiffText returns a line-oriented diff of two texts (e.g. two repeater
 // responses), for side-by-side comparison in the UI.
 func (a *App) DiffText(before, after string) diff.Result {
-	return diff.Lines(before, after)
+	return diff.Lines(
+		diff.CapInput(before, maxDiffInputBytes),
+		diff.CapInput(after, maxDiffInputBytes),
+	)
 }
 
 // ---- History ---------------------------------------------------------------
 
 // ListHistory returns filtered, newest-first history entries. When
-// searchBodies is true, the text also matches request/response bodies.
-func (a *App) ListHistory(text string, methods []string, searchBodies bool) []history.Entry {
-	return a.store.List(history.Filter{Text: text, Methods: methods, SearchBodies: searchBodies})
+// searchBodies is true, the text also matches request/response bodies;
+// hideStatus omits those status codes (e.g. 404 noise).
+func (a *App) ListHistory(text string, methods []string, searchBodies bool, hideStatus []int) []history.Entry {
+	hide := map[int]bool{}
+	for _, s := range hideStatus {
+		hide[s] = true
+	}
+	return a.store.List(history.Filter{Text: text, Methods: methods, SearchBodies: searchBodies, HideStatus: hide})
 }
 
 // ClearHistory discards all captured flows.
 func (a *App) ClearHistory() { a.store.Clear() }
+
+// AnnotateFlow sets a flow's user comment and highlight colour (empty clears).
+func (a *App) AnnotateFlow(id int64, comment, highlight string) error {
+	if !a.store.Annotate(id, comment, highlight) {
+		return fmt.Errorf("flow %d not found", id)
+	}
+	return nil
+}
 
 // GetFlow returns the full detail (raw request/response) for a flow id.
 func (a *App) GetFlow(id int64) (*FlowView, error) {
@@ -615,7 +696,11 @@ type IntruderConfig struct {
 	// the payload sets and takes precedence over Payloads.
 	Specs     []intruder.PayloadSpec `json:"specs,omitempty"`
 	GrepMatch string                 `json:"grepMatch"`
-	Threads   int                    `json:"threads"`
+	// ExtractGrep harvests the first match (or capture group) per response.
+	ExtractGrep string `json:"extractGrep"`
+	Threads     int    `json:"threads"`
+	// DelayMs waits this long between dispatches (WAF/rate-limit courtesy).
+	DelayMs int `json:"delayMs"`
 }
 
 // resolvePayloads expands Specs when present, otherwise returns the literal
@@ -636,6 +721,9 @@ func (cfg IntruderConfig) resolvePayloads() [][]string {
 type IntruderPreview struct {
 	Positions int `json:"positions"`
 	Requests  int `json:"requests"`
+	// Capped is true when the combination space exceeded
+	// intruder.MaxPlannedRequests and the tail was dropped.
+	Capped bool `json:"capped"`
 }
 
 // PreviewIntruder validates a config and returns its size without running.
@@ -644,7 +732,7 @@ func (a *App) PreviewIntruder(cfg IntruderConfig) (*IntruderPreview, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &IntruderPreview{Positions: tmpl.Positions(), Requests: att.Count()}, nil
+	return &IntruderPreview{Positions: tmpl.Positions(), Requests: att.Count(), Capped: att.Truncated()}, nil
 }
 
 // StartIntruder launches an attack, streaming each result as an
@@ -655,26 +743,43 @@ func (a *App) StartIntruder(cfg IntruderConfig) error {
 		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	total := att.Count()
 
 	a.attackMu.Lock()
 	if a.attackCancel != nil {
 		a.attackCancel() // stop any previous attack
 	}
 	a.attackCancel = cancel
+	a.attack = att
 	a.attackMu.Unlock()
 
 	go func() {
+		defer cancel() // release the context once the run drains
 		for res := range att.Run(ctx) {
 			wruntime.EventsEmit(a.ctx, "intruder:result", res)
 		}
-		wruntime.EventsEmit(a.ctx, "intruder:done", att.Count())
+		wruntime.EventsEmit(a.ctx, "intruder:done", total)
 		a.attackMu.Lock()
+		if a.attack == att {
+			a.attack = nil
+		}
 		if a.attackCancel != nil {
 			a.attackCancel = nil
 		}
 		a.attackMu.Unlock()
 	}()
 	return nil
+}
+
+// PauseIntruder freezes (true) or resumes (false) dispatching on the running
+// attack. In-flight requests still finish.
+func (a *App) PauseIntruder(paused bool) {
+	a.attackMu.Lock()
+	att := a.attack
+	a.attackMu.Unlock()
+	if att != nil {
+		att.SetPaused(paused)
+	}
 }
 
 // StopIntruder cancels a running attack.
@@ -684,6 +789,7 @@ func (a *App) StopIntruder() {
 		a.attackCancel()
 		a.attackCancel = nil
 	}
+	a.attack = nil
 	a.attackMu.Unlock()
 }
 
@@ -699,6 +805,8 @@ func (a *App) buildAttack(cfg IntruderConfig) (*intruder.Attack, *intruder.Templ
 		Payloads:         cfg.resolvePayloads(),
 		Concurrency:      cfg.Threads,
 		GrepMatch:        cfg.GrepMatch,
+		ExtractGrep:      cfg.ExtractGrep,
+		DelayMs:          cfg.DelayMs,
 		InsecureUpstream: true,
 	})
 	if err != nil {

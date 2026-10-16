@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, on, MCPActivity, MCPLevel, MCPStatus, ScopeConfig } from "../lib/api";
+import { api, copyText, on, MCPActivity, MCPLevel, MCPStatus, ScopeConfig } from "../lib/api";
 
 const PROMPTS = [
   "Use Kanca to review the traffic I captured and list the most interesting endpoints to test.",
@@ -95,12 +95,11 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
   };
 
   const copy = async (key: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyText(text)) {
       setCopied(key);
       setTimeout(() => setCopied((k) => (k === key ? "" : k)), 1500);
-    } catch {
-      /* clipboard may be unavailable */
+    } else {
+      setDesktopMsg({ ok: false, text: "Copy failed in this browser — select the text manually." });
     }
   };
 

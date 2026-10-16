@@ -71,20 +71,48 @@ export default function IntruderView({ seed, clearSeed }: Props) {
   const [scheme, setScheme] = useState("https");
   const [host, setHost] = useState("example.com");
   const [template, setTemplate] = useState(
-    "GET /?q=§test§ HTTP/1.1\r\nHost: example.com\r\n\r\n"
+    "GET /?q=FUZZ HTTP/1.1\r\nHost: example.com\r\n\r\n"
   );
-  const [marker, setMarker] = useState("§");
+  const [marker, setMarker] = useState("FUZZ");
   const [type, setType] = useState<AttackType>("sniper");
   const [threads, setThreads] = useState(10);
+  const [delayMs, setDelayMs] = useState(0);
   const [grep, setGrep] = useState("");
+  const [extract, setExtract] = useState("");
   const [payloadSets, setPayloadSets] = useState<PSet[]>([
     newPSet("admin\nroot\ntest\nguest"),
   ]);
   const [preview, setPreview] = useState<IntruderPreview | null>(null);
   const [running, setRunning] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [results, setResults] = useState<IntruderResult[]>([]);
   const [error, setError] = useState("");
   const bufRef = useRef<IntruderResult[]>([]);
+  const templateRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Live position count: every marker occurrence is one position.
+  const markerCount = marker ? template.split(marker).length - 1 : 0;
+
+  /** Replace the textarea's current selection with one marker. */
+  const markSelection = () => {
+    const el = templateRef.current;
+    if (!el || !marker) return;
+    const { selectionStart: s, selectionEnd: e, value } = el;
+    if (s == null || e == null || s === e) return;
+    const next = value.slice(0, s) + marker + value.slice(e);
+    setTemplate(next);
+    // Leave the caret after the inserted marker.
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(s + marker.length, s + marker.length);
+    });
+  };
+
+  /** Strip every marker from the template. */
+  const clearMarkers = () => {
+    if (!marker) return;
+    setTemplate((t) => t.split(marker).join(""));
+  };
 
   useEffect(() => {
     if (seed) {
@@ -134,7 +162,9 @@ export default function IntruderView({ seed, clearSeed }: Props) {
       template,
       marker,
       grepMatch: grep,
+      extractGrep: extract,
       threads,
+      delayMs,
       payloads: [],
       specs: sets.map(toSpec),
     };
@@ -156,6 +186,7 @@ export default function IntruderView({ seed, clearSeed }: Props) {
     bufRef.current = [];
     // Set before awaiting: a short attack can emit "intruder:done" before the call returns.
     setRunning(true);
+    setPaused(false);
     try {
       await api.startIntruder(cfg());
     } catch (e: any) {
@@ -165,8 +196,31 @@ export default function IntruderView({ seed, clearSeed }: Props) {
   };
 
   const stop = async () => {
-    await api.stopIntruder();
+    try {
+      await api.stopIntruder();
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    }
     setRunning(false);
+    setPaused(false);
+  };
+
+  const pause = async () => {
+    try {
+      await api.pauseIntruder(true);
+      setPaused(true);
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    }
+  };
+
+  const resume = async () => {
+    try {
+      await api.pauseIntruder(false);
+      setPaused(false);
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    }
   };
 
   const multiSet = type === "pitchfork" || type === "cluster_bomb";
@@ -190,9 +244,10 @@ export default function IntruderView({ seed, clearSeed }: Props) {
     <div className="split-h">
       <div className="pane pad col" style={{ flex: "0 0 42%" }}>
         <div className="callout">
-          Mark positions by wrapping a value in the <b>{marker}</b> marker, e.g.{" "}
-          <span className="mono">id={marker}1{marker}</span>. Run only against
-          systems you are authorised to test.
+          Mark positions with the <b>{marker || "FUZZ"}</b> keyword, e.g.{" "}
+          <span className="mono">id={marker || "FUZZ"}</span> — or select a value
+          and hit <b>FUZZ selection</b>. Case-sensitive literal (so avoid words
+          containing it). Run only against systems you are authorised to test.
         </div>
         <div className="row">
           <label className="field">
@@ -206,7 +261,7 @@ export default function IntruderView({ seed, clearSeed }: Props) {
             Host
             <input value={host} onChange={(e) => setHost(e.target.value)} />
           </label>
-          <label className="field" style={{ width: 60 }}>
+          <label className="field" style={{ width: 76 }}>
             Marker
             <input value={marker} onChange={(e) => setMarker(e.target.value)} />
           </label>
@@ -214,6 +269,7 @@ export default function IntruderView({ seed, clearSeed }: Props) {
         <label className="field grow">
           Request template
           <textarea
+            ref={templateRef}
             className="payloads"
             style={{ minHeight: 160 }}
             spellCheck={false}
@@ -221,6 +277,34 @@ export default function IntruderView({ seed, clearSeed }: Props) {
             onChange={(e) => setTemplate(e.target.value)}
           />
         </label>
+        <div className="row">
+          <button
+            onClick={markSelection}
+            title="Replace the selected text with a payload marker"
+            disabled={!marker}
+          >
+            FUZZ selection
+          </button>
+          <button
+            onClick={clearMarkers}
+            title="Remove every marker from the template"
+            disabled={!marker || markerCount === 0}
+          >
+            Clear FUZZ
+          </button>
+          <span
+            className="pill"
+            title={
+              !marker
+                ? "Set a marker first"
+                : `${markerCount} payload positions`
+            }
+          >
+            {!marker
+              ? "no marker"
+              : `${markerCount} position${markerCount === 1 ? "" : "s"}`}
+          </span>
+        </div>
         <div className="row">
           <label className="field grow">
             Attack type
@@ -244,10 +328,27 @@ export default function IntruderView({ seed, clearSeed }: Props) {
               onChange={(e) => setThreads(Number(e.target.value) || 1)}
             />
           </label>
+          <label className="field" style={{ width: 90 }} title="Milliseconds to wait between dispatches (WAF/rate-limit courtesy)">
+            Delay ms
+            <input
+              type="number"
+              min={0}
+              value={delayMs}
+              onChange={(e) => setDelayMs(Math.max(0, Number(e.target.value) || 0))}
+            />
+          </label>
         </div>
         <label className="field">
           Grep-match (regexp, flags matching responses)
           <input value={grep} onChange={(e) => setGrep(e.target.value)} />
+        </label>
+        <label className="field" title="First match (or capture group) is copied into the Extract column">
+          Grep-extract (regexp, harvests one value per response)
+          <input
+            value={extract}
+            onChange={(e) => setExtract(e.target.value)}
+            placeholder="e.g. csrf=([A-Za-z0-9]+)"
+          />
         </label>
 
         <div className="col">
@@ -339,13 +440,30 @@ export default function IntruderView({ seed, clearSeed }: Props) {
               Start attack
             </button>
           ) : (
-            <button className="danger" onClick={stop}>
-              Stop
-            </button>
+            <>
+              {!paused ? (
+                <button onClick={pause} title="Freeze dispatching; in-flight requests finish">
+                  Pause
+                </button>
+              ) : (
+                <button className="primary" onClick={resume}>
+                  Resume
+                </button>
+              )}
+              <button className="danger" onClick={stop}>
+                Stop
+              </button>
+            </>
           )}
           {preview && (
             <span className="pill">
               {preview.positions} positions · {preview.requests} requests
+              {preview.capped && " · capped"}
+            </span>
+          )}
+          {preview?.capped && (
+            <span className="dim" title="The combination space exceeded the safety cap; narrow a payload set or range to cover the rest.">
+              capped at the safety limit — tail combinations dropped
             </span>
           )}
         </div>
@@ -357,7 +475,7 @@ export default function IntruderView({ seed, clearSeed }: Props) {
         <div className="toolbar">
           <b>Results</b>
           <span className="pill">{results.length}</span>
-          {running && <span className="dim">running…</span>}
+          {running && <span className="dim">{paused ? "paused" : "running…"}</span>}
           <span className="grow" />
           <button onClick={() => setResults([])} disabled={running}>
             Clear
@@ -373,6 +491,7 @@ export default function IntruderView({ seed, clearSeed }: Props) {
                 <th style={{ width: 80 }}>Length</th>
                 <th style={{ width: 70 }}>Time</th>
                 <th style={{ width: 70 }}>Match</th>
+                {extract && <th style={{ width: 160 }}>Extract</th>}
               </tr>
             </thead>
             <tbody>
@@ -386,11 +505,16 @@ export default function IntruderView({ seed, clearSeed }: Props) {
                   <td className={r.matched ? "matched" : "dim"}>
                     {r.matched ? "✓" : ""}
                   </td>
+                  {extract && (
+                    <td className="mono dim" title={r.extracted || ""}>
+                      {r.extracted || "—"}
+                    </td>
+                  )}
                 </tr>
               ))}
               {results.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="empty">
+                  <td colSpan={extract ? 7 : 6} className="empty">
                     Configure an attack and press Start.
                   </td>
                 </tr>
