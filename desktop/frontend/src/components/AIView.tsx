@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, on, MCPActivity, MCPLevel, MCPStatus, ScopeConfig } from "../lib/api";
+import { hideToken, OPENCODE_DEBUG_CMD, OPENCODE_LIST_CMD, resolveOpencodeExport, resolveOpencodeExportWin, resolveOpencodeLocal, resolveOpencodeRemote } from "../lib/opencode";
 
 const PROMPTS = [
   "Use Kanca to review the traffic I captured and list the most interesting endpoints to test.",
@@ -14,11 +15,9 @@ interface Props {
 
 type Msg = { ok: boolean; text: string } | null;
 
-// The token is a secret: show it shortened (screenshots get shared) and copy
-// it in full.
-function hideToken(cmd: string): string {
-  return cmd.replace(/(Bearer [0-9a-f]{6})[0-9a-f]+([0-9a-f]{4})/, "$1…$2");
-}
+// hideToken lives in lib/opencode.ts (unit-tested); re-exported here so
+// existing imports keep working.
+export { hideToken } from "../lib/opencode";
 
 function errText(e: any): string {
   return String(e?.message ?? e);
@@ -67,7 +66,7 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
   const newToken = async () => {
     if (
       !confirm(
-        "Connected assistants stop working until they use the new token: run the Claude Code command again. Claude Desktop picks it up by itself.\n\nCreate a new token?"
+        "Connected assistants stop working until they use the new token: run the Claude Code command again and re-export KANCA_MCP_TOKEN for Opencode remote. Claude Desktop and Opencode local pick it up by itself.\n\nCreate a new token?"
       )
     )
       return;
@@ -75,7 +74,7 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
     try {
       apply(await api.regenerateMCPToken());
       setActivity([]);
-      setMsg({ ok: true, text: "New token created. Run the Claude Code command below again." });
+      setMsg({ ok: true, text: "New token created. Run the Claude Code command below again (Opencode remote: re-export KANCA_MCP_TOKEN)." });
     } catch (e) {
       setMsg({ ok: false, text: errText(e) });
     }
@@ -95,12 +94,16 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
   };
 
   const copy = async (key: string, text: string) => {
+    if (!text) {
+      setMsg({ ok: false, text: "Nothing to copy yet, wait for the backend status to load." });
+      return;
+    }
     try {
       await navigator.clipboard.writeText(text);
       setCopied(key);
       setTimeout(() => setCopied((k) => (k === key ? "" : k)), 1500);
     } catch {
-      /* clipboard may be unavailable */
+      setMsg({ ok: false, text: "Copy failed in this browser, select the text manually." });
     }
   };
 
@@ -114,17 +117,23 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
 
   const scopeHosts = scope?.hosts ?? [];
   const canTest = st.level === "readwrite";
+  // Old backends lack opencode* fields; resolvers build the same snippets
+  // locally so Copy never writes "undefined".
+  const opRemote = resolveOpencodeRemote(st.opencodeRemote, st.url);
+  const opLocal = resolveOpencodeLocal(st.opencodeLocal);
+  const opExport = resolveOpencodeExport(st.opencodeExport);
+  const opExportWin = resolveOpencodeExportWin(st.opencodeExportWin);
 
   return (
     <div className="pane pad col" style={{ maxWidth: 980 }}>
       <h3>AI assistant</h3>
       <div className="callout">
-        Let Claude work alongside you. You browse the target through Kanca;
-        Claude, in Claude Code or Claude Desktop, reads what you captured, looks
+        Let Claude or Opencode work alongside you. You browse the target through Kanca;
+        the assistant, in Claude Code, Claude Desktop or Opencode, reads what you captured, looks
         for vulnerabilities, checks them with its own requests and reports what
-        it finds to the Scanner tab. Kanca serves Claude over MCP on this
+        it finds to the Scanner tab. Kanca serves assistants over MCP on this
         computer only (<span className="mono">127.0.0.1</span>), and every
-        client needs a secret token.
+        remote client needs a secret token.
       </div>
 
       <div className="ai-switch">
@@ -289,6 +298,65 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
         </div>
       </div>
 
+      <h4>Connect Opencode</h4>
+      <p className="dim" style={{ margin: 0 }}>
+        Same Kanca endpoint, two routes. Remote keeps the secret out of the
+        file via <span className="mono">{"{env:KANCA_MCP_TOKEN}"}</span>; local
+        runs <span className="mono">kanca mcp-stdio</span> like Claude Desktop
+        and needs no secret. Save under{" "}
+        <span className="mono">mcp.kanca</span> in your project{" "}
+        <span className="mono">opencode.json</span> or{" "}
+        <span className="mono">~/.config/opencode/opencode.json</span>.
+      </p>
+      <div className="setup-grid">
+        <div className="setup-card">
+          <b>Opencode (remote)</b>
+          <p className="dim">
+            First fill the token once in this terminal (never stored in the file):
+          </p>
+          <pre className="code-box">{opExport}</pre>
+          <div className="row">
+            <button className="primary" onClick={() => copy("op-export", opExport)}>
+              {copied === "op-export" ? "Copied!" : "Copy export"}
+            </button>
+          </div>
+          <p className="dim">Windows PowerShell instead:</p>
+          <pre className="code-box">{opExportWin}</pre>
+          <div className="row">
+            <button className="primary" onClick={() => copy("op-export-win", opExportWin)}>
+              {copied === "op-export-win" ? "Copied!" : "Copy export"}
+            </button>
+          </div>
+          <p className="dim">Then add this to opencode.json:</p>
+          <pre className="code-box">{opRemote}</pre>
+          <div className="row">
+            <button className="primary" onClick={() => copy("op-remote", opRemote)}>
+              {copied === "op-remote" ? "Copied!" : "Copy config"}
+            </button>
+          </div>
+        </div>
+        <div className="setup-card">
+          <b>Opencode (local)</b>
+          <p className="dim">
+            No secret needed, the bridge reads{" "}
+            <span className="mono">~/.kanca/mcp.json</span> itself. Use an
+            absolute binary path if <span className="mono">kanca</span> is not
+            on PATH.
+          </p>
+          <pre className="code-box">{opLocal}</pre>
+          <div className="row">
+            <button className="primary" onClick={() => copy("op-local", opLocal)}>
+              {copied === "op-local" ? "Copied!" : "Copy config"}
+            </button>
+          </div>
+          <p className="dim">
+            Check with <span className="mono">{OPENCODE_LIST_CMD}</span>; on
+            401/OAuth trouble run{" "}
+            <span className="mono">{OPENCODE_DEBUG_CMD}</span>.
+          </p>
+        </div>
+      </div>
+
       <h4>Try asking</h4>
       <div className="col" style={{ gap: 6 }}>
         {PROMPTS.map((p, i) => (
@@ -326,8 +394,8 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
             <tr>
               <td colSpan={3} className="empty">
                 {st.running
-                  ? "Nothing yet. When Claude uses Kanca, each step appears here."
-                  : "Turn on AI access and connect Claude to get started."}
+                  ? "Nothing yet. When the assistant uses Kanca, each step appears here."
+                  : "Turn on AI access and connect Claude or Opencode to get started."}
               </td>
             </tr>
           )}
