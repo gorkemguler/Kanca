@@ -188,6 +188,10 @@ export interface MCPStatus {
   claudeCode: string;
   claudeDesktop: string;
   claudeDesktopPath: string;
+  opencodeRemote?: string;
+  opencodeLocal?: string;
+  opencodeExport?: string;
+  opencodeExportWin?: string;
 }
 
 export interface IntruderResult {

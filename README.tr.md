@@ -196,6 +196,12 @@ işaretleyin. Ardından Claude'u bağlayın:
   bir köprü olarak (`kanca mcp-stdio`) başlatır; bu yüzden Kanca açık ve AI
   erişimi açık olmalı. Kayıt programın konumunu gösterdiği için önce Kanca'yı
   kalıcı yerine (ör. Applications) taşıyın.
+- **Opencode**: aynı sekmede **Connect Opencode** bölümünü açın. Remote,
+  secret'ı dosyaya yazmaz (`Bearer {env:KANCA_MCP_TOKEN}`, `oauth:false`;
+  önce `export KANCA_MCP_TOKEN="$(jq -r .token ~/.kanca/mcp.json)"`),
+  local ise secretsiz `{"type":"local","command":["kanca","mcp-stdio"]}` kullanır.
+  `opencode mcp list` / `opencode mcp debug kanca` ile doğrulayın. Örnekler:
+  `opencode.json.example` (remote) ve `opencode.local.json.example` (local).
 
 Sonra örneğin şunu sorun: *"Kanca'daki API isteklerini IDOR ve yetki kontrolü
 açıkları için incele, şüphelendiğin her şeyi doğrula."*

@@ -28,7 +28,8 @@ import (
 )
 
 func main() {
-	// Claude Desktop launches "kanca mcp-stdio" to reach a running Kanca's AI
+	// AI assistants (Claude Code/Desktop, Opencode) reach a running Kanca via
+	// "kanca mcp-stdio", which bridges stdio JSON-RPC to the local HTTP
 	// endpoint (desktop app or "kanca -mcp").
 	if len(os.Args) > 1 && os.Args[1] == "mcp-stdio" {
 		if err := mcp.RunStdioBridge(defaultCADir(), os.Stdin, os.Stdout); err != nil {
@@ -45,7 +46,7 @@ func main() {
 		maxFlows = flag.Int("max-flows", 100000, "maximum retained transactions")
 		browser  = flag.Bool("browser", false, "open Chrome/Edge/Brave in a dedicated profile already routed through the proxy")
 		scopeArg = flag.String("scope", "", "comma-separated target hosts; only these are recorded, and the only ones an AI assistant may test")
-		aiFlag   = flag.Bool("mcp", false, "let AI assistants (Claude Code, Claude Desktop) use Kanca over MCP on 127.0.0.1:8765")
+		aiFlag   = flag.Bool("mcp", false, "let AI assistants (Claude Code/Desktop, Opencode) use Kanca over MCP on 127.0.0.1:8765")
 		aiRead   = flag.Bool("mcp-readonly", false, "with -mcp: the assistant may read traffic but not send requests")
 		aiRaw    = flag.Bool("mcp-no-mask", false, "with -mcp: show cookies, tokens and passwords to the assistant unmasked")
 	)
@@ -114,7 +115,7 @@ func main() {
 }
 
 // startMCP serves the AI assistant endpoint for this session and prints how
-// to connect Claude Code and Claude Desktop.
+// to connect Claude Code/Desktop and Opencode (remote HTTP + local stdio).
 func startMCP(dir string, store *history.Store, findings *scanner.Scanner, hosts []string, readOnly, mask bool) {
 	cfg, err := mcp.LoadConfig(dir)
 	if err != nil {
@@ -150,6 +151,10 @@ func startMCP(dir string, store *history.Store, findings *scanner.Scanner, hosts
 	fmt.Printf("  Claude Code:    claude mcp add --transport http kanca %s --header \"Authorization: Bearer %s\"\n", cfg.URL(), cfg.Token)
 	exe, _ := os.Executable()
 	fmt.Printf("  Claude Desktop: add {\"command\": %q, \"args\": [\"mcp-stdio\"]} under mcpServers.kanca\n", exe)
+	fmt.Printf("  Opencode (remote): add to opencode.json under mcp.kanca: {\"type\":\"remote\",\"url\":%q,\"headers\":{\"Authorization\":\"Bearer {env:KANCA_MCP_TOKEN}\"},\"oauth\":false}\n", cfg.URL())
+	fmt.Println(`    then: export KANCA_MCP_TOKEN="$(jq -r .token ~/.kanca/mcp.json)"  # no secret in the file`)
+	fmt.Printf("  Opencode (local):  add to opencode.json under mcp.kanca: {\"type\":\"local\",\"command\":[%q, \"mcp-stdio\"]}\n", exe)
+	fmt.Println(`  Verify: opencode mcp list  # kanca should appear as connected; opencode mcp debug kanca on 401/OAuth issues`)
 }
 
 func printFlow(f *proxy.Flow) {
