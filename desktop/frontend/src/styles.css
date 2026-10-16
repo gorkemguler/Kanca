@@ -599,3 +599,37 @@ details[open] summary {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---- scanner targets ---- */
+.scanner-targets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.row.wrap {
+  flex-wrap: wrap;
+}
+.target-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 2px 1px 9px;
+  border: 1px solid var(--accent-dim);
+  border-radius: 12px;
+  background: rgba(232, 121, 43, 0.1);
+}
+.target-chip button {
+  border: none;
+  background: none;
+  padding: 0 6px;
+  color: var(--text-dim);
+  line-height: 1.2;
+}
+.target-chip button:hover:not(:disabled) {
+  color: var(--err);
+  background: none;
+}

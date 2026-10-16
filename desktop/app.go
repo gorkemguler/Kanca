@@ -291,7 +291,7 @@ func (a *App) checkTarget(authority string) error {
 	if m := a.targetMatcher(); m != nil && m(hostOnlyApp(authority)) {
 		return nil
 	}
-	return fmt.Errorf("%s is not one of your targets; add it under CA / Settings → Targets to scan it", hostOnlyApp(authority))
+	return fmt.Errorf("%s is not one of your targets; add it in the Scanner tab to scan it", hostOnlyApp(authority))
 }
 
 // ---- Match & replace rules -------------------------------------------------

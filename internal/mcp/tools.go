@@ -446,7 +446,7 @@ func (s *Server) getScope() toolResult {
 	var b strings.Builder
 	hosts := s.deps.ScopeHosts()
 	if s.deps.Scope() == nil || len(hosts) == 0 {
-		b.WriteString("No targets are set, so no requests may be sent. Ask the user to add the site under CA / Settings → Targets in Kanca.\n")
+		b.WriteString("No targets are set, so no requests may be sent. Ask the user to add the site as a target in Kanca's Scanner tab.\n")
 	} else {
 		fmt.Fprintf(&b, "Targets (a bare domain also covers its subdomains): %s\n", strings.Join(hosts, ", "))
 	}
@@ -471,11 +471,11 @@ func (s *Server) budget(o Options) int {
 // allowed checks that the assistant may send traffic to host.
 func (s *Server) allowed(host string) (string, bool) {
 	if s.opts().Level != LevelReadWrite {
-		return "Kanca gives you read-only access, so requests can't be sent. The user can allow it in CA / Settings → AI assistant.", false
+		return "Kanca gives you read-only access, so requests can't be sent. The user can allow it in Kanca's AI Assistant tab.", false
 	}
 	inScope := s.deps.Scope()
 	if inScope == nil {
-		return "No targets are set. Ask the user to add the site under CA / Settings → Targets in Kanca before testing.", false
+		return "No targets are set. Ask the user to add the site as a target in Kanca's Scanner tab before testing.", false
 	}
 	if !inScope(hostOnly(host)) {
 		return fmt.Sprintf("%s is not one of the user's targets (%s); only targets may be tested.", hostOnly(host), strings.Join(s.deps.ScopeHosts(), ", ")), false

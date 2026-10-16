@@ -39,13 +39,19 @@ func TestScanSiteProbesTargetGETsOnly(t *testing.T) {
 	if _, err := a.PlanSiteScan(host); err == nil {
 		t.Fatal("a host that isn't a target must not be scanned")
 	}
+	if _, err := a.PlanSiteScan(""); err == nil {
+		t.Fatal("scanning all targets needs targets")
+	}
 	a.AddTarget(host)
 	plan, err := a.PlanSiteScan(host)
 	if err != nil || plan.Safe != 1 || plan.Unsafe != 1 {
 		t.Fatalf("plan = %+v, %v", plan, err)
 	}
+	if all, err := a.PlanSiteScan(""); err != nil || all.Safe != 1 || all.Unsafe != 1 {
+		t.Fatalf("plan for all targets = %+v, %v", all, err)
+	}
 
-	if err := a.ScanSite(host, false, false); err != nil {
+	if err := a.ScanSite("", false, false); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.ScanSite(host, false, false); err == nil {

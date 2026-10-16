@@ -9,7 +9,7 @@ const PROMPTS = [
 
 interface Props {
   onStatus: (s: MCPStatus) => void;
-  onOpenSettings: () => void;
+  onOpenTargets: () => void;
 }
 
 type Msg = { ok: boolean; text: string } | null;
@@ -24,7 +24,7 @@ function errText(e: any): string {
   return String(e?.message ?? e);
 }
 
-export default function AIView({ onStatus, onOpenSettings }: Props) {
+export default function AIView({ onStatus, onOpenTargets }: Props) {
   const [st, setSt] = useState<MCPStatus | null>(null);
   const [scope, setScope] = useState<ScopeConfig | null>(null);
   const [activity, setActivity] = useState<MCPActivity[]>([]);
@@ -122,7 +122,7 @@ export default function AIView({ onStatus, onOpenSettings }: Props) {
         Let Claude work alongside you. You browse the target through Kanca;
         Claude, in Claude Code or Claude Desktop, reads what you captured, looks
         for vulnerabilities, checks them with its own requests and reports what
-        it finds to the Findings tab. Kanca serves Claude over MCP on this
+        it finds to the Scanner tab. Kanca serves Claude over MCP on this
         computer only (<span className="mono">127.0.0.1</span>), and every
         client needs a secret token.
       </div>
@@ -199,12 +199,12 @@ export default function AIView({ onStatus, onOpenSettings }: Props) {
               No targets are set, so the assistant can read traffic but can't
               send requests or scan yet.
             </span>
-            <button onClick={onOpenSettings}>Set targets</button>
+            <button onClick={onOpenTargets}>Set targets</button>
           </div>
         ) : (
           <p className="dim" style={{ margin: 0 }}>
             Targets: <span className="mono">{scopeHosts.join(", ")}</span>{" "}
-            <a href="#" onClick={(e) => (e.preventDefault(), onOpenSettings())}>
+            <a href="#" onClick={(e) => (e.preventDefault(), onOpenTargets())}>
               change
             </a>
           </p>

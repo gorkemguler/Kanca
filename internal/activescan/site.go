@@ -29,13 +29,13 @@ var staticExt = map[string]bool{
 	".mp4": true, ".webm": true, ".mp3": true, ".pdf": true,
 }
 
-// PlanSite picks the requests worth probing among flows sent to authority
-// (host:port, as flows record it), oldest first.
-func PlanSite(flows []*proxy.Flow, authority string) SitePlan {
+// PlanSite picks the requests worth probing among flows whose authority
+// (host:port, as flows record it) include accepts, oldest first.
+func PlanSite(flows []*proxy.Flow, include func(authority string) bool) SitePlan {
 	var plan SitePlan
 	seen := map[string]bool{}
 	for _, f := range flows {
-		if !strings.EqualFold(f.Host, authority) || f.Error != "" || f.StatusCode == 0 {
+		if !include(f.Host) || f.Error != "" || f.StatusCode == 0 {
 			continue
 		}
 		method := strings.ToUpper(f.Method)
@@ -55,7 +55,7 @@ func PlanSite(flows []*proxy.Flow, authority string) SitePlan {
 			names = append(names, p.where+":"+p.label)
 		}
 		sort.Strings(names)
-		key := method + " " + req.URL.Path + " " + strings.Join(names, ",")
+		key := strings.ToLower(f.Host) + " " + method + " " + req.URL.Path + " " + strings.Join(names, ",")
 		if seen[key] {
 			continue
 		}

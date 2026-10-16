@@ -403,3 +403,12 @@ export function hostOf(authority: string): string {
   const i = authority.lastIndexOf(":");
   return i > 0 && authority.indexOf(":") === i ? authority.slice(0, i) : authority;
 }
+
+/** matchesTarget mirrors Kanca's target rules: exact host, parent domain
+ * ("example.com" covers "api.example.com"), or "*.example.com" for subdomains. */
+export function matchesTarget(host: string, targets: string[]): boolean {
+  const h = host.toLowerCase();
+  return targets.some((t) =>
+    t.startsWith("*.") ? h.endsWith(t.slice(1)) : h === t || h.endsWith("." + t)
+  );
+}

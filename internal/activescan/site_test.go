@@ -29,11 +29,17 @@ func TestPlanSitePicksParameterisedRequestsOncePerShape(t *testing.T) {
 	failed.Error, failed.StatusCode = "connection refused", 0
 	flows = append(flows, failed)
 
-	plan := PlanSite(flows, host+":443")
+	plan := PlanSite(flows, func(a string) bool { return a == host+":443" })
 	if len(plan.Safe) != 2 || plan.Safe[0] != flows[0] || plan.Safe[1] != flows[2] {
 		t.Fatalf("safe = %d requests, want /search?q and /search?q&page once each", len(plan.Safe))
 	}
 	if len(plan.Unsafe) != 1 || plan.Unsafe[0] != flows[5] {
 		t.Fatalf("unsafe = %d requests, want only the contact form", len(plan.Unsafe))
+	}
+
+	// The same path on another host is a separate request to probe.
+	both := PlanSite(flows, func(string) bool { return true })
+	if len(both.Safe) != 3 {
+		t.Fatalf("across hosts, safe = %d requests, want 3", len(both.Safe))
 	}
 }

@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
-import { api, on, ScopeConfig, TrustStatus } from "../lib/api";
+import { api, on, TrustStatus } from "../lib/api";
 
 export default function SettingsView() {
   const [ca, setCa] = useState("");
   const [copied, setCopied] = useState(false);
-  const [scopeEnabled, setScopeEnabled] = useState(false);
-  const [scopeHosts, setScopeHosts] = useState("");
-  const [scopeSaved, setScopeSaved] = useState(false);
   const [browserMsg, setBrowserMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [extDir, setExtDir] = useState("");
   const [extErr, setExtErr] = useState("");
@@ -64,24 +61,7 @@ export default function SettingsView() {
   useEffect(() => {
     api.getTrustStatus().then(setTrust).catch(() => setTrust(null));
     api.getRootCA().then(setCa).catch(() => setCa(""));
-    const showScope = (s: ScopeConfig) => {
-      setScopeEnabled(s.enabled);
-      setScopeHosts((s.hosts ?? []).join("\n"));
-    };
-    api.getScope().then(showScope).catch(() => {});
-    // Targets added from the site map or history show up here too.
-    return on("scope:changed", showScope);
   }, []);
-
-  const saveScope = async () => {
-    const hosts = scopeHosts
-      .split("\n")
-      .map((h) => h.trim())
-      .filter((h) => h.length > 0);
-    await api.setScope({ enabled: scopeEnabled, hosts });
-    setScopeSaved(true);
-    setTimeout(() => setScopeSaved(false), 1500);
-  };
 
   const copy = async () => {
     try {
@@ -189,39 +169,6 @@ export default function SettingsView() {
         value={ca}
       />
 
-      <h3 style={{ marginTop: 24 }}>Targets</h3>
-      <div className="callout">
-        Kanca only scans these hosts: active scans, <b>Scan site</b> and the AI
-        assistant refuse anything else. One host per line; a bare domain covers
-        its subdomains (<span className="mono">example.com</span> matches{" "}
-        <span className="mono">api.example.com</span>), and{" "}
-        <span className="mono">*.example.com</span> means subdomains only. You
-        can paste a URL.
-      </div>
-      <textarea
-        className="payloads mono"
-        style={{ minHeight: 120 }}
-        spellCheck={false}
-        placeholder={"example.com\n*.internal.test\n10.0.0.5"}
-        value={scopeHosts}
-        onChange={(e) => setScopeHosts(e.target.value)}
-      />
-      <label className="row">
-        <input
-          type="checkbox"
-          checked={scopeEnabled}
-          onChange={(e) => setScopeEnabled(e.target.checked)}
-        />
-        <span>
-          Only record traffic to targets{" "}
-          <span className="dim">(other sites are still proxied, just not logged)</span>
-        </span>
-      </label>
-      <div className="row">
-        <button className="primary" onClick={saveScope}>
-          {scopeSaved ? "Saved!" : "Save targets"}
-        </button>
-      </div>
     </div>
   );
 }

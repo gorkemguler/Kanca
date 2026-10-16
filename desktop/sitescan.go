@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
+	"strings"
 
 	"github.com/gorkemguler/kanca/internal/activescan"
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -35,32 +35,50 @@ type SiteScanDone struct {
 	Stopped bool   `json:"stopped"`
 }
 
-// PlanSiteScan counts the captured requests a scan of host (host:port, as the
-// site map shows it) would probe. host must be a target.
+// PlanSiteScan counts the captured requests a scan would probe: on host
+// (host:port, as the site map shows it), which must be a target, or on every
+// target when host is "".
 func (a *App) PlanSiteScan(host string) (SiteScanPlan, error) {
-	if err := a.checkTarget(host); err != nil {
+	include, err := a.scanFilter(host)
+	if err != nil {
 		return SiteScanPlan{Host: host}, err
 	}
-	p := activescan.PlanSite(a.store.Snapshot(), host)
+	p := activescan.PlanSite(a.store.Snapshot(), include)
 	return SiteScanPlan{Host: host, Safe: len(p.Safe), Unsafe: len(p.Unsafe)}, nil
 }
 
-// ScanSite actively scans every captured request with parameters on host, one
-// at a time in the background, adding what it finds to Findings. Forms and
-// other state-changing requests are included only with includeUnsafe, since
-// each probe repeats them. Progress arrives as sitescan:progress events, then
-// sitescan:done.
+// scanFilter selects the flows a scan of host may probe ("" = all targets).
+func (a *App) scanFilter(host string) (func(authority string) bool, error) {
+	if host != "" {
+		if err := a.checkTarget(host); err != nil {
+			return nil, err
+		}
+		return func(authority string) bool { return strings.EqualFold(authority, host) }, nil
+	}
+	m := a.targetMatcher()
+	if m == nil {
+		return nil, errors.New("add the sites you're allowed to test as targets first")
+	}
+	return func(authority string) bool { return m(hostOnlyApp(authority)) }, nil
+}
+
+// ScanSite actively scans every captured request with parameters on host, or
+// on every target when host is "", one at a time in the background, adding
+// what it finds to Findings. Forms and other state-changing requests are
+// included only with includeUnsafe, since each probe repeats them. Progress
+// arrives as sitescan:progress events, then sitescan:done.
 func (a *App) ScanSite(host string, includeUnsafe, aggressive bool) error {
-	if err := a.checkTarget(host); err != nil {
+	include, err := a.scanFilter(host)
+	if err != nil {
 		return err
 	}
-	plan := activescan.PlanSite(a.store.Snapshot(), host)
+	plan := activescan.PlanSite(a.store.Snapshot(), include)
 	flows := plan.Safe
 	if includeUnsafe {
 		flows = append(flows, plan.Unsafe...)
 	}
 	if len(flows) == 0 {
-		return fmt.Errorf("Kanca hasn't captured any requests with parameters on %s yet: browse the site through Kanca first", hostOnlyApp(host))
+		return errors.New("Kanca hasn't captured any requests with parameters to scan yet: browse the site through Kanca first")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

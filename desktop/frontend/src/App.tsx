@@ -5,7 +5,7 @@ import InterceptView from "./components/InterceptView";
 import RepeaterView from "./components/RepeaterView";
 import IntruderView from "./components/IntruderView";
 import RulesView from "./components/RulesView";
-import FindingsView from "./components/FindingsView";
+import ScannerView from "./components/ScannerView";
 import WebSocketView from "./components/WebSocketView";
 import SiteMapView from "./components/SiteMapView";
 import SettingsView from "./components/SettingsView";
@@ -116,7 +116,7 @@ export default function App() {
     { key: "repeater", label: "Repeater" },
     { key: "intruder", label: "Intruder" },
     { key: "rules", label: "Match/Replace" },
-    { key: "findings", label: "Findings" },
+    { key: "findings", label: "Scanner" },
     { key: "websocket", label: "WebSocket" },
     { key: "ai", label: "AI Assistant" },
     { key: "settings", label: "CA / Settings" },
@@ -262,10 +262,10 @@ export default function App() {
           <IntruderView seed={intruderSeed} clearSeed={() => setIntruderSeed(null)} />
         )}
         {tab === "rules" && <RulesView />}
-        {tab === "findings" && <FindingsView onOpenFlow={openFlow} />}
+        {tab === "findings" && <ScannerView onOpenFlow={openFlow} />}
         {tab === "websocket" && <WebSocketView />}
         {tab === "sitemap" && <SiteMapView onOpenFindings={() => setTab("findings")} />}
-        {tab === "ai" && <AIView onStatus={setAi} onOpenSettings={() => setTab("settings")} />}
+        {tab === "ai" && <AIView onStatus={setAi} onOpenTargets={() => setTab("findings")} />}
         {tab === "settings" && <SettingsView />}
       </div>
     </div>
