@@ -171,8 +171,12 @@ func (a *App) SetMCPSettings(enabled bool, level string, mask bool) (MCPStatus, 
 // Opencode remote users must re-export KANCA_MCP_TOKEN; Opencode local/stdio
 // users need nothing.
 func (a *App) RegenerateMCPToken() (MCPStatus, error) {
+	tok, err := mcp.NewToken()
+	if err != nil {
+		return a.GetMCPStatus(), err
+	}
 	a.mcpMu.Lock()
-	a.mcpCfg.Token = mcp.NewToken()
+	a.mcpCfg.Token = tok
 	cfg := a.mcpCfg
 	a.mcpMu.Unlock()
 	if err := mcp.SaveConfig(configDir(), cfg); err != nil {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, on, MCPActivity, MCPLevel, MCPStatus, ScopeConfig } from "../lib/api";
+import { api, copyText, on, MCPActivity, MCPLevel, MCPStatus, ScopeConfig } from "../lib/api";
 import { hideToken, OPENCODE_DEBUG_CMD, OPENCODE_LIST_CMD, resolveOpencodeExport, resolveOpencodeExportWin, resolveOpencodeLocal, resolveOpencodeRemote } from "../lib/opencode";
 
 const PROMPTS = [
@@ -98,12 +98,11 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
       setMsg({ ok: false, text: "Nothing to copy yet, wait for the backend status to load." });
       return;
     }
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyText(text)) {
       setCopied(key);
       setTimeout(() => setCopied((k) => (k === key ? "" : k)), 1500);
-    } catch {
-      setMsg({ ok: false, text: "Copy failed in this browser, select the text manually." });
+    } else {
+      setMsg({ ok: false, text: "Copy failed in this browser — select the text manually." });
     }
   };
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, DiffResult, FlowView, RepeaterTab } from "../lib/api";
 import RawMessage from "./RawMessage";
+import DiffLines from "./DiffLines";
 
 interface LocalTab {
   id: number;
@@ -171,42 +172,7 @@ export default function RepeaterView({ pending, clearPending }: Props) {
           </div>
           {showDiff && diff ? (
             <div className="split-v">
-              <div className="toolbar">
-                <b>Diff</b>
-                <span className="pill" style={{ color: "var(--ok)" }}>
-                  +{diff.stats.added}
-                </span>
-                <span className="pill" style={{ color: "var(--err)" }}>
-                  −{diff.stats.removed}
-                </span>
-                <span className="dim">previous → latest response</span>
-                <span className="grow" />
-                <button onClick={() => setShowDiff(false)}>Close diff</button>
-              </div>
-              <div className="pane msg">
-                <pre style={{ margin: 0 }}>
-                  {diff.lines.map((l, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        background:
-                          l.op === "insert"
-                            ? "rgba(76,175,114,0.15)"
-                            : l.op === "delete"
-                            ? "rgba(224,85,97,0.15)"
-                            : "transparent",
-                        color:
-                          l.op === "equal" ? "var(--text-dim)" : "var(--text)",
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-all",
-                      }}
-                    >
-                      {l.op === "insert" ? "+ " : l.op === "delete" ? "- " : "  "}
-                      {l.text}
-                    </div>
-                  ))}
-                </pre>
-              </div>
+              <DiffLines diff={diff} caption="previous → latest response" onClose={() => setShowDiff(false)} />
             </div>
           ) : (
             <div className="split-h">

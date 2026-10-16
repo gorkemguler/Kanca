@@ -251,6 +251,16 @@ select:focus {
 .hist-table tr.sel {
   background: #2a2f3d;
 }
+.hist-table tr:focus {
+  outline: 1px solid var(--accent-2);
+  outline-offset: -1px;
+}
+.diff-add {
+  background: rgba(76, 175, 114, 0.15);
+}
+.diff-del {
+  background: rgba(224, 85, 97, 0.15);
+}
 .status-2 {
   color: var(--ok);
 }

@@ -10,10 +10,11 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestParseAndRender(t *testing.T) {
-	raw := []byte("GET /?id=§1§&q=§a§ HTTP/1.1\r\nHost: x\r\n\r\n")
+	raw := []byte("GET /?id=FUZZ&q=FUZZ HTTP/1.1\r\nHost: x\r\n\r\n")
 	tmpl, err := Parse(raw, DefaultMarker)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -21,8 +22,11 @@ func TestParseAndRender(t *testing.T) {
 	if tmpl.Positions() != 2 {
 		t.Fatalf("positions = %d", tmpl.Positions())
 	}
-	if bv := tmpl.BaseValues(); bv[0] != "1" || bv[1] != "a" {
-		t.Fatalf("base values = %v", bv)
+	// Keyword positions carry no base value (ffuf-style).
+	for _, bv := range tmpl.BaseValues() {
+		if bv != "" {
+			t.Fatalf("base values = %v, want all empty", tmpl.BaseValues())
+		}
 	}
 	out := string(tmpl.Render([]string{"99", "z"}))
 	if !strings.Contains(out, "id=99&q=z") {
@@ -30,14 +34,28 @@ func TestParseAndRender(t *testing.T) {
 	}
 }
 
-func TestParseUnbalanced(t *testing.T) {
-	if _, err := Parse([]byte("id=§1"), DefaultMarker); err == nil {
-		t.Fatal("expected error on unbalanced markers")
+func TestParseSingleKeywordIsOnePosition(t *testing.T) {
+	tmpl, err := Parse([]byte("id=FUZZ"), DefaultMarker)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if tmpl.Positions() != 1 {
+		t.Fatalf("positions = %d, want 1", tmpl.Positions())
+	}
+}
+
+func TestParseWithoutMarkerHasNoPositions(t *testing.T) {
+	tmpl, err := Parse([]byte("GET /?id=1 HTTP/1.1\r\nHost: x\r\n\r\n"), DefaultMarker)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if tmpl.Positions() != 0 {
+		t.Fatalf("positions = %d, want 0", tmpl.Positions())
 	}
 }
 
 func TestPlanCounts(t *testing.T) {
-	raw := []byte("GET /?a=§1§&b=§2§ HTTP/1.1\r\nHost: x\r\n\r\n")
+	raw := []byte("GET /?a=FUZZ&b=FUZZ HTTP/1.1\r\nHost: x\r\n\r\n")
 	tmpl, _ := Parse(raw, DefaultMarker)
 	set := []string{"p", "q", "r"} // 3 payloads
 
@@ -76,7 +94,7 @@ func TestAttackRunsAgainstServer(t *testing.T) {
 	defer backend.Close()
 	u, _ := url.Parse(backend.URL)
 
-	raw := []byte("GET /?id=§guest§ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+	raw := []byte("GET /?id=FUZZ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
 	tmpl, _ := Parse(raw, DefaultMarker)
 	a, err := NewAttack(tmpl, Config{
 		Type:        Sniper,
@@ -123,7 +141,7 @@ func TestGrepMatchLooksInsideCompressedResponses(t *testing.T) {
 	}))
 	defer backend.Close()
 	u, _ := url.Parse(backend.URL)
-	tmpl, _ := Parse([]byte("GET /?id=§guest§ HTTP/1.1\r\nHost: "+u.Host+"\r\nAccept-Encoding: gzip, br\r\n\r\n"), DefaultMarker)
+	tmpl, _ := Parse([]byte("GET /?id=FUZZ HTTP/1.1\r\nHost: "+u.Host+"\r\nAccept-Encoding: gzip, br\r\n\r\n"), DefaultMarker)
 	a, err := NewAttack(tmpl, Config{Type: Sniper, Scheme: "http", Host: u.Host,
 		Payloads: [][]string{{"user", "admin"}}, GrepMatch: "SECRET-FLAG", Concurrency: 2})
 	if err != nil {
@@ -137,5 +155,178 @@ func TestGrepMatchLooksInsideCompressedResponses(t *testing.T) {
 	}
 	if len(matched) != 1 || matched[0] != "admin" {
 		t.Fatalf("grep should match inside gzip responses, matched %v", matched)
+	}
+}
+
+func TestClusterBombCapped(t *testing.T) {
+	raw := []byte("GET /?a=FUZZ&b=FUZZ&c=FUZZ HTTP/1.1\r\nHost: x\r\n\r\n")
+	tmpl, _ := Parse(raw, DefaultMarker)
+	big := make([]string, 0, 300)
+	for i := 0; i < 300; i++ {
+		big = append(big, fmt.Sprintf("p%d", i))
+	}
+	a, err := NewAttack(tmpl, Config{Type: ClusterBomb, Payloads: [][]string{big, big, big}, Scheme: "http", Host: "x"})
+	if err != nil {
+		t.Fatalf("new attack: %v", err)
+	}
+	if got := a.Count(); got != MaxPlannedRequests {
+		t.Fatalf("count = %d, want cap %d", got, MaxPlannedRequests)
+	}
+	if !a.Truncated() {
+		t.Fatal("Truncated() = false, want true for a 27M combination space")
+	}
+	// Every planned job must carry one value per position (full arity).
+	for _, j := range a.plan() {
+		if len(j.values) != 3 {
+			t.Fatalf("job has %d values, want 3 (full arity)", len(j.values))
+		}
+	}
+}
+
+func TestRunStopsOnCancel(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "ok")
+	}))
+	defer backend.Close()
+	u, _ := url.Parse(backend.URL)
+
+	raw := []byte("GET /?id=FUZZ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+	tmpl, _ := Parse(raw, DefaultMarker)
+	payloads := make([]string, 0, 500)
+	for i := 0; i < 500; i++ {
+		payloads = append(payloads, fmt.Sprintf("v%d", i))
+	}
+	a, err := NewAttack(tmpl, Config{Type: Sniper, Scheme: "http", Host: u.Host, Payloads: [][]string{payloads}, Concurrency: 2})
+	if err != nil {
+		t.Fatalf("new attack: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancelled before the first job is planned
+	n := 0
+	for range a.Run(ctx) {
+		n++
+		if n > 4 {
+			t.Fatalf("run kept dispatching after cancel: %d results", n)
+		}
+	}
+}
+
+func TestExtractGrepHarvestsFirstGroup(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `session abcdef1234567890 ok`)
+	}))
+	defer backend.Close()
+	u, _ := url.Parse(backend.URL)
+	raw := []byte("GET /?id=FUZZ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+	tmpl, _ := Parse(raw, DefaultMarker)
+	a, err := NewAttack(tmpl, Config{Type: Sniper, Scheme: "http", Host: u.Host, Payloads: [][]string{{"1"}}, ExtractGrep: `session ([a-z0-9]+)`})
+	if err != nil {
+		t.Fatalf("new attack: %v", err)
+	}
+	n := 0
+	for res := range a.Run(context.Background()) {
+		n++
+		if res.Extracted != "abcdef1234567890" {
+			t.Fatalf("extracted = %q, want the captured token", res.Extracted)
+		}
+	}
+	if n != 1 {
+		t.Fatalf("results = %d, want 1", n)
+	}
+}
+
+func TestExtractGrepCapsGreedyMatch(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "prefix "+strings.Repeat("y", 500)+" suffix")
+	}))
+	defer backend.Close()
+	u, _ := url.Parse(backend.URL)
+	raw := []byte("GET /?a=FUZZ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+	tmpl, _ := Parse(raw, DefaultMarker)
+	a, err := NewAttack(tmpl, Config{Type: Sniper, Scheme: "http", Host: u.Host, Payloads: [][]string{{"1"}}, ExtractGrep: `prefix (.+) suffix`})
+	if err != nil {
+		t.Fatalf("new attack: %v", err)
+	}
+	for res := range a.Run(context.Background()) {
+		if len(res.Extracted) != maxExtractLen {
+			t.Fatalf("extracted len = %d, want cap %d", len(res.Extracted), maxExtractLen)
+		}
+	}
+}
+
+func TestPauseFreezesDispatch(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(15 * time.Millisecond)
+		fmt.Fprint(w, "ok")
+	}))
+	defer backend.Close()
+	u, _ := url.Parse(backend.URL)
+	raw := []byte("GET /?id=FUZZ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+	tmpl, _ := Parse(raw, DefaultMarker)
+	payloads := make([]string, 0, 60)
+	for i := 0; i < 60; i++ {
+		payloads = append(payloads, fmt.Sprintf("v%d", i))
+	}
+	a, err := NewAttack(tmpl, Config{Type: Sniper, Scheme: "http", Host: u.Host, Payloads: [][]string{payloads}, Concurrency: 2})
+	if err != nil {
+		t.Fatalf("new attack: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a.SetPaused(true)
+	if !a.Paused() {
+		t.Fatal("Paused() = false after SetPaused(true)")
+	}
+	ch := a.Run(ctx)
+	// While paused, (almost) nothing may dispatch: allow in-flight slack.
+	time.Sleep(120 * time.Millisecond)
+	select {
+	case <-ch:
+		t.Fatal("Run dispatched while paused")
+	default:
+	}
+	a.SetPaused(false)
+	n := 0
+	done := make(chan struct{})
+	go func() {
+		for range ch {
+			n++
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		t.Fatal("Run did not finish after resume")
+	}
+	if n != 60 {
+		t.Fatalf("results = %d, want 60 after resume", n)
+	}
+}
+
+func TestDelaySlowsDispatch(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "ok")
+	}))
+	defer backend.Close()
+	u, _ := url.Parse(backend.URL)
+	raw := []byte("GET /?id=FUZZ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+	tmpl, _ := Parse(raw, DefaultMarker)
+	payloads := []string{"a", "b", "c", "d"}
+	a, err := NewAttack(tmpl, Config{Type: Sniper, Scheme: "http", Host: u.Host, Payloads: [][]string{payloads}, Concurrency: 4, DelayMs: 60})
+	if err != nil {
+		t.Fatalf("new attack: %v", err)
+	}
+	start := time.Now()
+	n := 0
+	for range a.Run(context.Background()) {
+		n++
+	}
+	// 4 dispatches with a 60ms pre-delay each need ~240ms of pacing.
+	if elapsed := time.Since(start); elapsed < 150*time.Millisecond {
+		t.Fatalf("4 delayed dispatches took %v, want >= 150ms", elapsed)
+	}
+	if n != 4 {
+		t.Fatalf("results = %d, want 4", n)
 	}
 }

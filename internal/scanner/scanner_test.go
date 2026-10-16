@@ -100,3 +100,50 @@ func TestVersionDisclosureAndCallback(t *testing.T) {
 		t.Fatal("OnFinding callback never fired")
 	}
 }
+
+func TestSameIssueDifferentPathsNotDeduped(t *testing.T) {
+	s := New()
+	h := http.Header{}
+	h.Set("Content-Type", "application/json")
+	h.Add("Set-Cookie", "sid=abc; Path=/")
+	a := flow(1, "https", "api.example.com", h)
+	a.URL = "https://api.example.com/login"
+	b := flow(2, "https", "api.example.com", h)
+	b.URL = "https://api.example.com/profile"
+	s.Inspect(a)
+	s.Inspect(b)
+
+	count := 0
+	for _, f := range s.Findings() {
+		if f.Title == "Cookie without HttpOnly" {
+			count++
+		}
+	}
+	if count != 2 {
+		t.Fatalf("expected 2 HttpOnly findings across paths, got %d (%+v)", count, s.Findings())
+	}
+}
+
+func TestSetStatusWorkflow(t *testing.T) {
+	s := New()
+	h := http.Header{}
+	h.Set("Content-Type", "text/html")
+	s.Inspect(flow(1, "https", "example.com", h))
+	fs := s.Findings()
+	if len(fs) == 0 {
+		t.Fatal("no findings to triage")
+	}
+	id := fs[0].ID
+	if !s.SetStatus(id, StatusConfirmed) {
+		t.Fatal("SetStatus(confirmed) failed")
+	}
+	if got := s.Findings()[0].Status; got != StatusConfirmed {
+		t.Fatalf("status = %q, want confirmed", got)
+	}
+	if s.SetStatus(id, "bogus") {
+		t.Fatal("SetStatus accepted an invalid status")
+	}
+	if s.SetStatus(999999, StatusResolved) {
+		t.Fatal("SetStatus accepted an unknown ID")
+	}
+}

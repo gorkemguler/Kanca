@@ -73,9 +73,10 @@ type request struct {
 }
 
 type postData struct {
-	MimeType string `json:"mimeType"`
-	Text     string `json:"text"`
-	Encoding string `json:"encoding,omitempty"`
+	MimeType string      `json:"mimeType"`
+	Params   []nameValue `json:"params,omitempty"`
+	Text     string      `json:"text"`
+	Encoding string      `json:"encoding,omitempty"`
 }
 
 type response struct {
@@ -113,22 +114,26 @@ func build(flows []*proxy.Flow, version string) doc {
 }
 
 func buildEntry(f *proxy.Flow) entry {
+	ct := f.Request.Headers.Get("Content-Type")
 	req := request{
 		Method:      f.Method,
 		URL:         f.URL,
 		HTTPVersion: "HTTP/1.1",
 		Headers:     headers(f.Request.Headers),
-		QueryString: []nameValue{},
-		Cookies:     []nameValue{},
-		HeadersSize: -1,
+		QueryString: queryPairs(f.URL),
+		Cookies:     requestCookies(f.Request.Headers),
+		HeadersSize: headerSize(f.Request.Raw, f.Request.Body),
 		BodySize:    len(f.Request.Body),
 	}
 	if len(f.Request.Body) > 0 {
 		text, enc := encodeBody(f.Request.Body)
 		req.PostData = &postData{
-			MimeType: f.Request.Headers.Get("Content-Type"),
+			MimeType: ct,
 			Text:     text,
 			Encoding: enc,
+		}
+		if enc == "" && strings.HasPrefix(strings.ToLower(ct), "application/x-www-form-urlencoded") {
+			req.PostData.Params = formPairs(string(f.Request.Body))
 		}
 	}
 
@@ -138,7 +143,7 @@ func buildEntry(f *proxy.Flow) entry {
 		StatusText:  http.StatusText(f.StatusCode),
 		HTTPVersion: "HTTP/1.1",
 		Headers:     headers(f.Response.Headers),
-		Cookies:     []nameValue{},
+		Cookies:     responseCookies(f.Response.Headers),
 		Content: content{
 			Size:     len(f.Response.Body),
 			MimeType: f.Response.Headers.Get("Content-Type"),
@@ -146,7 +151,7 @@ func buildEntry(f *proxy.Flow) entry {
 			Encoding: respEnc,
 		},
 		RedirectURL: f.Response.Headers.Get("Location"),
-		HeadersSize: -1,
+		HeadersSize: headerSize(f.Response.Raw, f.Response.Body),
 		BodySize:    len(f.Response.Body),
 	}
 
@@ -188,6 +193,93 @@ func encodeBody(b []byte) (text, encoding string) {
 		return string(b), ""
 	}
 	return base64.StdEncoding.EncodeToString(b), "base64"
+}
+
+// headerSize derives the on-the-wire header length from the captured raw
+// bytes. It returns -1 (HAR for "unknown") when the numbers don't add up.
+func headerSize(raw, body []byte) int {
+	if len(raw) < len(body) {
+		return -1
+	}
+	return len(raw) - len(body)
+}
+
+// queryPairs splits a URL's query string into HAR name/value pairs. Badly
+// encoded queries yield no pairs rather than an error.
+func queryPairs(rawURL string) []nameValue {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.RawQuery == "" {
+		return []nameValue{}
+	}
+	vals, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		return []nameValue{}
+	}
+	return sortedPairs(vals)
+}
+
+// formPairs splits an application/x-www-form-urlencoded body into pairs.
+func formPairs(body string) []nameValue {
+	vals, err := url.ParseQuery(body)
+	if err != nil {
+		return []nameValue{}
+	}
+	return sortedPairs(vals)
+}
+
+func sortedPairs(vals url.Values) []nameValue {
+	out := []nameValue{}
+	for _, k := range sortedKeys(vals) {
+		for _, v := range vals[k] {
+			out = append(out, nameValue{Name: k, Value: v})
+		}
+	}
+	return out
+}
+
+func sortedKeys(vals url.Values) []string {
+	keys := make([]string, 0, len(vals))
+	for k := range vals {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// requestCookies parses Cookie headers into pairs. Malformed segments are
+// skipped, never fatal.
+func requestCookies(h http.Header) []nameValue {
+	out := []nameValue{}
+	for _, line := range h.Values("Cookie") {
+		for _, seg := range strings.Split(line, ";") {
+			seg = strings.TrimSpace(seg)
+			if seg == "" {
+				continue
+			}
+			name, value, _ := strings.Cut(seg, "=")
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+			out = append(out, nameValue{Name: name, Value: strings.TrimSpace(value)})
+		}
+	}
+	return out
+}
+
+// responseCookies parses Set-Cookie headers into name/value pairs (attributes
+// like Path and HttpOnly are carried by the raw headers, not the pair).
+func responseCookies(h http.Header) []nameValue {
+	out := []nameValue{}
+	for _, line := range h.Values("Set-Cookie") {
+		first, _, _ := strings.Cut(line, ";")
+		name, value, ok := strings.Cut(strings.TrimSpace(first), "=")
+		if !ok || name == "" {
+			continue
+		}
+		out = append(out, nameValue{Name: name, Value: strings.TrimSpace(value)})
+	}
+	return out
 }
 
 // Unmarshal parses a HAR 1.2 document (from any tool: browser dev-tools, other

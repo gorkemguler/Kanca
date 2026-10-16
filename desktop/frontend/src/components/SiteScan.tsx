@@ -33,13 +33,26 @@ export function ScanPlanPanel({ host, onClose }: PanelProps) {
   const [plan, setPlan] = useState<SiteScanPlan | null>(null);
   const [err, setErr] = useState("");
   const [includeUnsafe, setIncludeUnsafe] = useState(false);
+  const [includeDelete, setIncludeDelete] = useState(false);
   const [aggressive, setAggressive] = useState(false);
+  const [skipQuery, setSkipQuery] = useState(false);
+  const [skipBody, setSkipBody] = useState(false);
+  const [skipJson, setSkipJson] = useState(false);
+
+  const opts = {
+    includeUnsafe,
+    includeDelete,
+    aggressive,
+    skipQuery,
+    skipBody,
+    skipJson,
+  };
 
   const load = async () => {
     setPlan(null);
     setErr("");
     try {
-      setPlan(await api.planSiteScan(host));
+      setPlan(await api.planSiteScan(host, opts));
     } catch (e) {
       setErr(errText(e));
     }
@@ -48,7 +61,7 @@ export function ScanPlanPanel({ host, onClose }: PanelProps) {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [host]);
+  }, [host, includeDelete, skipQuery, skipBody, skipJson]);
 
   const addTarget = async () => {
     await api.addTarget(host);
@@ -57,7 +70,7 @@ export function ScanPlanPanel({ host, onClose }: PanelProps) {
 
   const start = async () => {
     try {
-      await api.scanSite(host, includeUnsafe, aggressive);
+      await api.scanSite(host, opts);
       onClose();
     } catch (e) {
       setErr(errText(e));
@@ -121,7 +134,7 @@ export function ScanPlanPanel({ host, onClose }: PanelProps) {
               />
               <span>
                 Also scan {plural(plan.unsafe, "form or API submission")} (POST, PUT,
-                PATCH){" "}
+                PATCH{includeDelete ? ", DELETE" : ""}){" "}
                 <span className="dim">
                   — every probe submits it again, e.g. sends a contact form dozens
                   of times.
@@ -129,6 +142,44 @@ export function ScanPlanPanel({ host, onClose }: PanelProps) {
               </span>
             </label>
           )}
+          <label className="ai-option">
+            <input
+              type="checkbox"
+              checked={includeDelete}
+              onChange={(e) => setIncludeDelete(e.target.checked)}
+            />
+            <span>
+              Include DELETE requests{" "}
+              <span className="dim">— probes never delete without this opt-in.</span>
+            </span>
+          </label>
+          <div className="row dim" style={{ gap: 12 }}>
+            <span>Probe:</span>
+            <label className="row">
+              <input
+                type="checkbox"
+                checked={!skipQuery}
+                onChange={(e) => setSkipQuery(!e.target.checked)}
+              />
+              <span>query</span>
+            </label>
+            <label className="row">
+              <input
+                type="checkbox"
+                checked={!skipBody}
+                onChange={(e) => setSkipBody(!e.target.checked)}
+              />
+              <span>form body</span>
+            </label>
+            <label className="row">
+              <input
+                type="checkbox"
+                checked={!skipJson}
+                onChange={(e) => setSkipJson(!e.target.checked)}
+              />
+              <span>JSON body</span>
+            </label>
+          </div>
           <label className="ai-option">
             <input
               type="checkbox"
@@ -209,6 +260,11 @@ export function ScanStatusBar({ onOpenFindings }: StatusProps) {
         {done.stopped ? "Stopped" : "Finished"} scanning <b>{scanLabel(done.host)}</b>:{" "}
         {plural(done.scanned, "request")} probed,{" "}
         {done.found === 0 ? "nothing new found." : <b>{plural(done.found, "new finding")}.</b>}
+        {done.errors > 0 && (
+          <span className="err-text" title={done.errorSample}>
+            {" "}{plural(done.errors, "request")} failed to probe.
+          </span>
+        )}
       </span>
       {onOpenFindings && (
         <button className="primary" onClick={onOpenFindings}>

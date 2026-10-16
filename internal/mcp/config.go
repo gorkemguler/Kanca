@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -46,7 +47,11 @@ func LoadConfig(dir string) (Config, error) {
 		c.Addr = DefaultAddr
 	}
 	if c.Token == "" {
-		c.Token = NewToken()
+		tok, err := NewToken()
+		if err != nil {
+			return c, err
+		}
+		c.Token = tok
 	}
 	return c, nil
 }
@@ -63,13 +68,14 @@ func SaveConfig(dir string, c Config) error {
 	return os.WriteFile(configPath(dir), data, 0o600)
 }
 
-// NewToken returns a random 256-bit bearer token.
-func NewToken() string {
+// NewToken returns a random 256-bit bearer token. crypto/rand failures are
+// returned instead of panicking so callers decide how to handle them.
+func NewToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		panic(err) // crypto/rand never fails on supported platforms
+		return "", fmt.Errorf("mcp: random token: %w", err)
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(b), nil
 }
 
 // URL is the endpoint clients connect to.

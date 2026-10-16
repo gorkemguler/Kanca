@@ -48,10 +48,43 @@ type Config struct {
 	// (default 3s). Lower values make tests fast; it also tunes the detection
 	// threshold.
 	TimeDelay time.Duration
+	// SkipQuery, SkipBody and SkipJSON restrict probing to a subset of
+	// insertion points (query string, form body, JSON body). All false means
+	// probe everywhere.
+	SkipQuery bool
+	SkipBody  bool
+	SkipJSON  bool
 	// BeforeSend, if set, is called before every request the scan sends, the
 	// baseline included; returning false skips that request. It lets callers
 	// count requests against a budget.
 	BeforeSend func() bool
+}
+
+// filterPoints drops insertion points the caller opted out of. The result is
+// a fresh slice; the input is never modified.
+func filterPoints(pts []insertionPoint, skipQuery, skipBody, skipJSON bool) []insertionPoint {
+	if !skipQuery && !skipBody && !skipJSON {
+		return pts
+	}
+	out := make([]insertionPoint, 0, len(pts))
+	for _, p := range pts {
+		switch p.where {
+		case "query":
+			if skipQuery {
+				continue
+			}
+		case "body":
+			if skipBody {
+				continue
+			}
+		case "json":
+			if skipJSON {
+				continue
+			}
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 // reflectionToken is a benign, unique marker injected to detect whether input
@@ -128,7 +161,7 @@ func Run(ctx context.Context, cfg Config) ([]scanner.Finding, error) {
 	}
 	r.baseLower = strings.ToLower(r.baseBody)
 
-	points := collectPoints(baseReq, baseBody, cfg.MaxParams)
+	points := filterPoints(collectPoints(baseReq, baseBody, cfg.MaxParams), cfg.SkipQuery, cfg.SkipBody, cfg.SkipJSON)
 	for _, ip := range points {
 		if ctx.Err() != nil {
 			break

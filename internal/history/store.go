@@ -116,6 +116,19 @@ func (s *Store) Clear() {
 	s.mu.Unlock()
 }
 
+// Annotate sets a flow's user comment and highlight colour. Empty strings
+// clear the field. It returns false for unknown IDs.
+func (s *Store) Annotate(id int64, comment, highlight string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, ok := s.byID[id]
+	if !ok {
+		return false
+	}
+	f.Comment, f.Highlight = comment, highlight
+	return true
+}
+
 // Filter narrows which entries List returns.
 type Filter struct {
 	// Text matches (case-insensitive) against host, path and method.
