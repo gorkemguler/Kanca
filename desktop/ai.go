@@ -29,6 +29,20 @@ type MCPStatus struct {
 	// binary as a stdio bridge.
 	ClaudeDesktop     string `json:"claudeDesktop"`
 	ClaudeDesktopPath string `json:"claudeDesktopPath"`
+	// OpencodeRemote is a ready-to-copy opencode.json snippet for the
+	// remote/HTTP route (same endpoint Claude Code uses). The token is NOT
+	// embedded: it references {env:KANCA_MCP_TOKEN} so the secret never lands
+	// in the config file.
+	OpencodeRemote string `json:"opencodeRemote"`
+	// OpencodeLocal is a ready-to-copy opencode.json snippet for the
+	// local/stdio route (same bridge Claude Desktop uses: kanca mcp-stdio).
+	// No secret is needed: the bridge reads ~/.kanca/mcp.json itself.
+	OpencodeLocal string `json:"opencodeLocal"`
+	// OpencodeExport fills KANCA_MCP_TOKEN from the saved config without
+	// printing the secret, for the remote route.
+	OpencodeExport string `json:"opencodeExport"`
+	// OpencodeExportWin is the same for Windows PowerShell (no jq/~ there).
+	OpencodeExportWin string `json:"opencodeExportWin"`
 }
 
 func (a *App) newMCPServer() *mcp.Server {
@@ -94,6 +108,8 @@ func (a *App) GetMCPStatus() MCPStatus {
 		Error: errText, Budget: mcp.DefaultBudget,
 		ClaudeCode:        fmt.Sprintf(`claude mcp add --transport http kanca %s --header "Authorization: Bearer %s"`, cfg.URL(), cfg.Token),
 		ClaudeDesktopPath: claudeDesktopConfigPath(),
+		OpencodeExport:    `export KANCA_MCP_TOKEN="$(jq -r .token ~/.kanca/mcp.json)"`,
+		OpencodeExportWin: `$env:KANCA_MCP_TOKEN = (Get-Content $HOME/.kanca/mcp.json | ConvertFrom-Json).token`,
 	}
 	if svc != nil && svc.Addr() != "" {
 		st.Running = true
@@ -102,7 +118,21 @@ func (a *App) GetMCPStatus() MCPStatus {
 	if entry, err := json.MarshalIndent(map[string]any{"mcpServers": map[string]any{"kanca": desktopEntry()}}, "", "  "); err == nil {
 		st.ClaudeDesktop = string(entry)
 	}
+	st.OpencodeRemote = marshalSnippet(opencodeRemoteEntry(cfg.URL()))
+	st.OpencodeLocal = marshalSnippet(opencodeLocalEntry())
 	return st
+}
+
+// marshalSnippet encodes a ready-to-copy config snippet. String maps cannot
+// fail in practice, but a silent "" would confuse Copy downstream, so failures
+// are logged instead of swallowed.
+func marshalSnippet(v map[string]any) string {
+	out, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "kanca: encoding MCP snippet: %v\n", err)
+		return ""
+	}
+	return string(out)
 }
 
 // GetMCPActivity returns what the assistant did this session, oldest first.
@@ -138,6 +168,8 @@ func (a *App) SetMCPSettings(enabled bool, level string, mask bool) (MCPStatus, 
 
 // RegenerateMCPToken replaces the token, disconnecting clients that use the
 // old one; Claude Code must be registered again (Claude Desktop needs nothing).
+// Opencode remote users must re-export KANCA_MCP_TOKEN; Opencode local/stdio
+// users need nothing.
 func (a *App) RegenerateMCPToken() (MCPStatus, error) {
 	a.mcpMu.Lock()
 	a.mcpCfg.Token = mcp.NewToken()
@@ -166,6 +198,46 @@ func desktopEntry() map[string]any {
 		exe = "kanca"
 	}
 	return map[string]any{"command": exe, "args": []string{"mcp-stdio"}}
+}
+
+// opencodeRemoteEntry builds the opencode.json snippet for the remote/HTTP
+// route. It mirrors `claude mcp add --transport http` but keeps the secret
+// out of the file via {env:KANCA_MCP_TOKEN}. oauth:false stops opencode from
+// starting an OAuth flow when the bearer is missing/wrong (it should 401).
+func opencodeRemoteEntry(url string) map[string]any {
+	return map[string]any{
+		"$schema": "https://opencode.ai/config.json",
+		"mcp": map[string]any{
+			"kanca": map[string]any{
+				"type":    "remote",
+				"url":     url,
+				"headers": map[string]any{"Authorization": "Bearer {env:KANCA_MCP_TOKEN}"},
+				"oauth":   false,
+				"enabled": true,
+			},
+		},
+	}
+}
+
+// opencodeLocalEntry builds the opencode.json snippet for the local/stdio
+// route. It mirrors the Claude Desktop bridge (kanca mcp-stdio): no secret
+// is needed because the bridge reads ~/.kanca/mcp.json itself. opencode
+// wants command as a single array (binary + args together).
+func opencodeLocalEntry() map[string]any {
+	exe, err := os.Executable()
+	if err != nil {
+		exe = "kanca"
+	}
+	return map[string]any{
+		"$schema": "https://opencode.ai/config.json",
+		"mcp": map[string]any{
+			"kanca": map[string]any{
+				"type":    "local",
+				"command": []string{exe, "mcp-stdio"},
+				"enabled": true,
+			},
+		},
+	}
 }
 
 func addDesktopEntry(path string, entry map[string]any) error {

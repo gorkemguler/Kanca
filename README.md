@@ -187,6 +187,12 @@ Assistant** tab and tick **Allow AI assistants to use Kanca**. Then connect Clau
   binary as a small bridge (`kanca mcp-stdio`), so Kanca must be running with AI
   access on. Move Kanca to its final place (e.g. Applications) first, since the
   entry points at the binary.
+- **Opencode**: in the same tab open **Connect Opencode**. Remote keeps the
+  secret out of the file (`Bearer {env:KANCA_MCP_TOKEN}`, `oauth:false`;
+  first run `export KANCA_MCP_TOKEN="$(jq -r .token ~/.kanca/mcp.json)"`),
+  local uses `{"type":"local","command":["kanca","mcp-stdio"]}` with no secret.
+  Verify with `opencode mcp list` / `opencode mcp debug kanca`. See
+  `opencode.json.example` (remote) and `opencode.local.json.example` (local).
 
 Then ask, for example: *"Check the API requests in Kanca for IDOR and broken
 access control, and verify anything you suspect."*
