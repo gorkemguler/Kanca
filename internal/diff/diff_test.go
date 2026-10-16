@@ -1,6 +1,10 @@
 package diff
 
-import "testing"
+import (
+	"strconv"
+	"strings"
+	"testing"
+)
 
 func opsString(r Result) string {
 	s := ""
@@ -60,5 +64,21 @@ func TestAppendedLines(t *testing.T) {
 	tail := r.Lines[len(r.Lines)-1]
 	if tail.Op != Insert || tail.BLine != 4 || tail.ALine != 0 {
 		t.Fatalf("appended line = %+v", tail)
+	}
+}
+
+func TestHugeInputsAreClipped(t *testing.T) {
+	var sbA, sbB strings.Builder
+	for i := 0; i < 6000; i++ {
+		sbA.WriteString("line alpha " + strconv.Itoa(i) + "\n")
+		sbB.WriteString("line beta " + strconv.Itoa(i) + "\n")
+	}
+	res := Lines(sbA.String(), sbB.String())
+	if len(res.Lines) == 0 {
+		t.Fatal("empty diff for huge inputs")
+	}
+	last := res.Lines[len(res.Lines)-1]
+	if last.Text != truncatedMarker {
+		t.Fatalf("last line = %q, want truncation marker", last.Text)
 	}
 }

@@ -246,17 +246,19 @@ Arayüz olmadan, `kanca -scope shop.example -mcp` aynı uç noktayı
 | Özellik | Ne yapar |
 | --- | --- |
 | **Araya giren proxy** | Yerel bir root CA tarafından imzalanmış, anlık üretilen host bazlı sertifikalarla TLS'i sonlandırır; böylece HTTPS trafiği incelenip değiştirilebilir. |
-| **HTTP geçmişi** | Her isteğin/yanıtın her iki tarafının ham baytlarıyla birlikte, aranabilir ve filtrelenebilir şekilde kaydı tutulur. |
+| **HTTP geçmişi** | Her isteğin/yanıtın her iki tarafının ham baytlarıyla birlikte, aranabilir ve filtrelenebilir şekilde kaydı tutulur. Method ve gizlenecek status kodlarına göre filtreleyin, filtre preset'leri kaydedin, akışlara not ve renkli highlight ekleyin. Herhangi bir akıştan CSRF proof-of-concept formu üretilebilir. |
 | **Interception kuyruğu** | İstekleri (isteğe bağlı olarak yanıtları da) duraklatın, ham baytları düzenleyin, ardından iletin veya düşürün. |
 | **Repeater** | Herhangi bir isteği alın, özgürce değiştirin ve istediğiniz kadar tekrar gönderin — her sekme kendi gönderim geçmişini tutar ve satır bazlı diff, bir yanıtı bir önceki gönderimle karşılaştırır. |
-| **Intruder / fuzzer** | Dört saldırı tipiyle (sniper, battering ram, pitchfork, cluster bomb) otomatik payload enjeksiyonu, eşzamanlılık kontrolü ve grep-eşleşme vurgulama. Payload setleri bir listeden veya üretilen sayısal bir aralıktan gelir; her set için işlemciler (URL/base64 encode, büyük/küçük harf, MD5/SHA-1/SHA-256) uygulanabilir. |
+| **Karşılaştırıcı (Comparer)** | Herhangi iki metni yan yana karşılaştırın: iki yanıt, iki istek veya yapıştırılan payload'lar — iki taraf da geçmişteki bir akıştan tek tıkla yüklenebilir. |
+| **JWT çalışma tezgâhı** | Bir token'ı çözün, payload'unu düzenleyin, yeniden imzalayın (HS256/384/512) ya da `none`'a indirgeyin ve bir secret'a karşı doğrulayın. |
+| **Intruder / fuzzer** | Dört saldırı tipiyle (sniper, battering ram, pitchfork, cluster bomb) otomatik payload enjeksiyonu, eşzamanlılık ve istek-arası gecikme kontrolü, duraklat/devam ettirme, grep-eşleşme vurgulama ve grep-extract ile değer hasadı. Pozisyonlar `FUZZ` anahtar kelimesiyle işaretlenir; payload setleri bir listeden veya üretilen sayısal bir aralıktan gelir; her set için işlemciler (URL/base64 encode, büyük/küçük harf, MD5/SHA-1/SHA-256) uygulanabilir. Kombinasyon uzayı güvenlik sınırıyla kesilir. |
 | **Hedefler (Targets)** | **Scanner** sekmesinde belirlenir: test etmeye izinli olduğunuz host'lar (tam eşleşme, üst alan adı veya `*.` joker karakter; adres yapıştırmak da olur). Aktif tarama, site taraması ve AI asistanı bunların dışına dokunmaz; *Only record traffic to targets* seçilmedikçe her site yine kaydedilir. |
 | **Okunabilir gövdeler** | Tarayıcılar Kanca'nın çözemediği `br` ve `zstd` sıkıştırmalarını ister; Kanca sunuculardan yalnızca `gzip` ve `deflate` ister ve bunları görüntüleme, arama, Intruder grep ve tarama için çözer. |
 | **Site haritası** | Yakalanan trafik, düz bir günlük yerine host bazlı bir URL yolu ağacı olarak sunulur; böylece hedefin yapısını görebilirsiniz. |
 | **Match & replace** | Hattın üzerinde uygulanan regex değişimleri — giden isteklerin ve gelen yanıtların istek satırını, bir header'ı veya gövdesini yeniden yazın (Content-Length doğru tutulur). |
 | **Gövde arama** | Sadece method/host/path değil, istek/yanıt gövdelerinde de geçmişi filtreleyin. |
 | **Pasif tarayıcı** | Gözlemlenen trafikten güvenlik sorunlarını işaretler (eksik CSP/HSTS/X-Content-Type-Options, güvensiz cookie'ler, gevşek CORS, sürüm ifşası) — ek bir istek göndermeden. |
-| **Site taraması** | Scanner sekmesindeki **Scan targets** (ya da Site Map'te bir sitenin yanındaki **Scan site**), hedeflerinizde yakalanan parametreli tüm istekleri tek tek aktif tarayıcıdan geçirir ve ilerlemeyi canlı gösterir; bulgular hemen altında listelenir. Formlar ve durumu değiştiren diğer istekler, her prob onları yeniden gönderdiği için yalnızca siz işaretlerseniz dahil edilir. |
+| **Site taraması** | Scanner sekmesindeki **Scan targets** (ya da Site Map'te bir sitenin yanındaki **Scan site**), hedeflerinizde yakalanan parametreli tüm istekleri tek tek aktif tarayıcıdan geçirir ve ilerlemeyi canlı gösterir; bulgular hemen altında listelenir. Formlar ve durumu değiştiren diğer istekler, her prob onları yeniden gönderdiği için yalnızca siz işaretlerseniz dahil edilir; DELETE için ayrı bir opt-in gerekir, query/form/JSON insertion point'leri tek tek açılıp kapatılabilir. Bulgular triyaj durumuna sahiptir (new/confirmed/resolved/false-positive). |
 | **Aktif tarayıcı** | Talep üzerine, tek bir isteğin insertion point'lerini — query, form gövdesi ve JSON gövdesi parametreleri — yansıyan girdi/XSS, hataya dayalı SQL enjeksiyonu, path traversal, open redirect, template enjeksiyonu (SSTI) ve CRLF/header enjeksiyonu için dener; yalnızca hedeflerinizle sınırlı. Opt-in bir **agresif** mod, boolean ve time-based SQLi ile time-based komut enjeksiyonu kontrollerini ekler (bunlar hedefi gözlemlenebilir şekilde çalıştırır). Sadece tespit amaçlıdır: her kontrol bir baseline ile karşılaştırma yapar ve elle doğrulanacak bir ipucu işaretler — asla istismar (exploitation) girişiminde bulunmaz. |
 | **Kaydet / içe-dışa aktar** | Tam bir oturumu (flow'lar, kurallar, bulgular, kapsam) bir proje dosyasına kaydedip sonra tekrar açın; yakalanan trafiği HAR 1.2 olarak dışa aktarın ve başka araçlardan HAR yakalamalarını içe aktarın. |
 | **WebSocket desteği** | `ws://` ve `wss://` upgrade'leri şeffaf biçimde köprülenir (normal HTTP için hop-by-hop olarak `Upgrade`/`Connection` header'ları temizlendiğinden eskiden bu bağlantılar bozulurdu) — canlı, bağlantı başına frame kaydıyla birlikte; sıfırdan yazılmış RFC 6455 framing, harici bağımlılık yok. |
@@ -284,6 +286,7 @@ kanca/                      çekirdek modül — saf Go standart kütüphanesi, 
 │   ├── scope/              hedef host eşleştirme
 │   ├── mcp/                AI asistanları için MCP sunucusu (+ stdio köprüsü)
 │   ├── diff/               satır bazlı metin diff'i (repeater yanıt karşılaştırması)
+│   ├── jwt/                JWT çözme/doğrulama/imzalama (HS256/384/512 ve none)
 │   ├── har/                HAR 1.2 dışa/içe aktarım
 │   └── project/            bir oturumu kaydet/yükle (flow'lar, kurallar, bulgular, kapsam)
 ├── cmd/kanca/              GUI gerektirmeyen headless CLI çalıştırıcı
@@ -374,8 +377,16 @@ düşürme/düzenleme yolları da dahildir (`internal/proxy/proxy_test.go`).
 
 ## Yol haritası
 
-Olası gelecek çalışmalar: kimlik doğrulama/oturum yönetimi yardımcıları,
-yerleşik bir wordlist yöneticisi ve bant dışı (OAST) etkileşim tespiti.
+Son eklenenler: istek karşılaştırıcı, JWT çalışma tezgâhı, bulgu triyaj akışı,
+geçmiş notları ve filtre preset'leri, CSRF PoC üretimi, Intruder
+duraklat/devam/gecikme/extract, FUZZ anahtar kelime pozisyonları, site
+taramalarında DELETE opt-in ve insertion-point anahtarları ile zengin
+HAR dışa aktarımları.
+
+Olası gelecek çalışmalar: kimlik doğrulama/oturum yönetimi yardımcıları
+(giriş makroları, çok kullanıcılı bağlamlar), yerleşik bir wordlist yöneticisi,
+spider/AJAX taraması, stored/DOM XSS ve SSRF kontrolleri ile bant dışı (OAST)
+etkileşim tespiti.
 
 ## Lisans
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, on, TrustStatus } from "../lib/api";
+import { api, copyText, on, TrustStatus } from "../lib/api";
 
 export default function SettingsView() {
   const [ca, setCa] = useState("");
@@ -64,12 +64,11 @@ export default function SettingsView() {
   }, []);
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(ca);
+    if (await copyText(ca)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* clipboard may be unavailable */
+    } else {
+      setBrowserMsg({ ok: false, text: "Copy failed in this browser — select the certificate manually." });
     }
   };
 

@@ -102,12 +102,23 @@ export interface IntruderConfig {
   payloads: string[][];
   specs?: PayloadSpec[];
   grepMatch: string;
+  extractGrep: string;
   threads: number;
+  delayMs: number;
 }
 
 export interface IntruderPreview {
   positions: number;
   requests: number;
+  /** true when the combination space exceeded the server cap and was cut. */
+  capped: boolean;
+}
+
+export interface JwtToken {
+  header: Record<string, unknown>;
+  payload: Record<string, unknown>;
+  alg: string;
+  unsigned: boolean;
 }
 
 /** hosts are the targets (the only hosts Kanca scans); enabled also limits
@@ -136,6 +147,17 @@ export interface SiteScanDone {
   scanned: number;
   found: number;
   stopped: boolean;
+  errors: number;
+  errorSample?: string;
+}
+
+export interface SiteScanOptions {
+  includeUnsafe: boolean;
+  includeDelete: boolean;
+  aggressive: boolean;
+  skipQuery: boolean;
+  skipBody: boolean;
+  skipJson: boolean;
 }
 
 export type RulePhase = "request" | "response";
@@ -154,6 +176,8 @@ export interface Rule {
 
 export type Severity = "info" | "low" | "medium" | "high";
 
+export type FindingStatus = "new" | "confirmed" | "resolved" | "false-positive";
+
 export interface Finding {
   id: number;
   severity: Severity;
@@ -164,6 +188,8 @@ export interface Finding {
   flowId: number;
   /** "ai" when an AI assistant reported it over MCP. */
   source?: string;
+  /** triage state; absent means "new". */
+  status?: FindingStatus;
 }
 
 export type MCPLevel = "read" | "readwrite";
@@ -201,6 +227,7 @@ export interface IntruderResult {
   length: number;
   durationMs: number;
   matched: boolean;
+  extracted?: string;
   error?: string;
 }
 
@@ -263,22 +290,26 @@ interface WailsBackend {
   GetScope(): Promise<ScopeConfig>;
   SetScope(cfg: ScopeConfig): Promise<void>;
   AddTarget(host: string): Promise<ScopeConfig>;
-  PlanSiteScan(host: string): Promise<SiteScanPlan>;
-  ScanSite(host: string, includeUnsafe: boolean, aggressive: boolean): Promise<void>;
+  PlanSiteScan(host: string, opts: SiteScanOptions): Promise<SiteScanPlan>;
+  ScanSite(host: string, opts: SiteScanOptions): Promise<void>;
   StopSiteScan(): Promise<void>;
   SiteScanStatus(): Promise<SiteScanProgress | null>;
   ListHistory(
     text: string,
     methods: string[],
-    searchBodies: boolean
+    searchBodies: boolean,
+    hideStatus: number[]
   ): Promise<Entry[]>;
   ClearHistory(): Promise<void>;
+  AnnotateFlow(id: number, comment: string, highlight: string): Promise<void>;
   GetFlow(id: number): Promise<FlowView>;
   GetRules(): Promise<Rule[]>;
   SetRules(rules: Rule[]): Promise<void>;
   GetFindings(): Promise<Finding[]>;
+  SetFindingStatus(id: number, status: FindingStatus): Promise<void>;
   ClearFindings(): Promise<void>;
   ActiveScan(flowId: number, aggressive: boolean): Promise<void>;
+  StopActiveScan(flowId: number): Promise<void>;
   ExportHAR(): Promise<void>;
   SaveProject(): Promise<void>;
   LoadProject(): Promise<void>;
@@ -299,7 +330,11 @@ interface WailsBackend {
   RepeaterClose(id: number): Promise<void>;
   PreviewIntruder(cfg: IntruderConfig): Promise<IntruderPreview>;
   StartIntruder(cfg: IntruderConfig): Promise<void>;
+  PauseIntruder(paused: boolean): Promise<void>;
   StopIntruder(): Promise<void>;
+  DecodeJWT(token: string): Promise<JwtToken>;
+  SignJWT(header: string, payload: string, secret: string): Promise<string>;
+  VerifyJWT(token: string, secret: string): Promise<boolean>;
   GetMCPStatus(): Promise<MCPStatus>;
   SetMCPSettings(enabled: boolean, level: MCPLevel, mask: boolean): Promise<MCPStatus>;
   RegenerateMCPToken(): Promise<MCPStatus>;
@@ -343,21 +378,27 @@ export const api = {
   getScope: () => backend().GetScope(),
   setScope: (cfg: ScopeConfig) => backend().SetScope(cfg),
   addTarget: (host: string) => backend().AddTarget(host),
-  planSiteScan: (host: string) => backend().PlanSiteScan(host),
-  scanSite: (host: string, includeUnsafe: boolean, aggressive: boolean) =>
-    backend().ScanSite(host, includeUnsafe, aggressive),
+  planSiteScan: (host: string, opts: SiteScanOptions) =>
+    backend().PlanSiteScan(host, opts),
+  scanSite: (host: string, opts: SiteScanOptions) =>
+    backend().ScanSite(host, opts),
   stopSiteScan: () => backend().StopSiteScan(),
   siteScanStatus: () => backend().SiteScanStatus(),
-  listHistory: (text: string, methods: string[], searchBodies: boolean) =>
-    backend().ListHistory(text, methods, searchBodies),
+  listHistory: (text: string, methods: string[], searchBodies: boolean, hideStatus: number[]) =>
+    backend().ListHistory(text, methods, searchBodies, hideStatus),
   clearHistory: () => backend().ClearHistory(),
+  annotateFlow: (id: number, comment: string, highlight: string) =>
+    backend().AnnotateFlow(id, comment, highlight),
   getFlow: (id: number) => backend().GetFlow(id),
   getRules: () => backend().GetRules(),
   setRules: (rules: Rule[]) => backend().SetRules(rules),
   getFindings: () => backend().GetFindings(),
+  setFindingStatus: (id: number, status: FindingStatus) =>
+    backend().SetFindingStatus(id, status),
   clearFindings: () => backend().ClearFindings(),
   activeScan: (flowId: number, aggressive: boolean) =>
     backend().ActiveScan(flowId, aggressive),
+  stopActiveScan: (flowId: number) => backend().StopActiveScan(flowId),
   exportHAR: () => backend().ExportHAR(),
   saveProject: () => backend().SaveProject(),
   loadProject: () => backend().LoadProject(),
@@ -380,7 +421,12 @@ export const api = {
   repeaterClose: (id: number) => backend().RepeaterClose(id),
   previewIntruder: (cfg: IntruderConfig) => backend().PreviewIntruder(cfg),
   startIntruder: (cfg: IntruderConfig) => backend().StartIntruder(cfg),
+  pauseIntruder: (paused: boolean) => backend().PauseIntruder(paused),
   stopIntruder: () => backend().StopIntruder(),
+  decodeJWT: (token: string) => backend().DecodeJWT(token),
+  signJWT: (header: string, payload: string, secret: string) =>
+    backend().SignJWT(header, payload, secret),
+  verifyJWT: (token: string, secret: string) => backend().VerifyJWT(token, secret),
   getMCPStatus: () => backend().GetMCPStatus(),
   setMCPSettings: (enabled: boolean, level: MCPLevel, mask: boolean) =>
     backend().SetMCPSettings(enabled, level, mask),
@@ -400,7 +446,29 @@ export function isNotTarget(e: unknown): boolean {
   return String((e as any)?.message ?? e).includes("not one of your targets");
 }
 
-/** hostOf strips the port from an authority such as "example.com:443". */
+/** copyText copies to the clipboard, falling back to a hidden textarea when
+ *  the async clipboard API is unavailable (e.g. insecure context). It
+ *  returns false instead of throwing when everything fails. */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
 export function hostOf(authority: string): string {
   const m = authority.match(/^\[([^\]]+)\](?::\d+)?$/);
   if (m) return m[1];

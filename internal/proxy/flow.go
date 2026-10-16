@@ -2,11 +2,21 @@ package proxy
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"sync/atomic"
 	"time"
 )
+
+// maxBodyBytes caps how much of a single message body the proxy buffers for
+// inspection. Beyond it the body is truncated and captureBody reports
+// errBodyTooLarge so the flow is marked instead of silently ballooning memory.
+const maxBodyBytes = 64 << 20
+
+// errBodyTooLarge reports a body that exceeded maxBodyBytes; the returned
+// bytes hold the first maxBodyBytes.
+var errBodyTooLarge = errors.New("proxy: message body exceeds 64 MiB, truncated")
 
 // Flow captures a single request/response transaction observed by the proxy.
 // It is the unit of data shared across the history log, the repeater and the
@@ -65,15 +75,21 @@ func nextFlowID() int64 { return atomic.AddInt64(&flowSeq, 1) }
 
 // captureBody reads and returns the full body, leaving a fresh reader in its
 // place so the caller can still forward the message downstream. A nil body
-// yields an empty slice.
+// yields an empty slice. Bodies larger than maxBodyBytes are truncated and
+// reported via errBodyTooLarge.
 func captureBody(rc *io.ReadCloser) ([]byte, error) {
 	if rc == nil || *rc == nil {
 		return []byte{}, nil
 	}
-	data, err := io.ReadAll(*rc)
+	data, err := io.ReadAll(io.LimitReader(*rc, maxBodyBytes+1))
 	_ = (*rc).Close()
 	if err != nil {
 		return data, err
+	}
+	if len(data) > maxBodyBytes {
+		data = data[:maxBodyBytes]
+		*rc = io.NopCloser(bytes.NewReader(data))
+		return data, errBodyTooLarge
 	}
 	*rc = io.NopCloser(bytes.NewReader(data))
 	return data, nil

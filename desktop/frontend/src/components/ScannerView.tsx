@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, hostOf, matchesTarget, on, Finding, ScopeConfig, Severity } from "../lib/api";
+import { api, hostOf, matchesTarget, on, Finding, FindingStatus, ScopeConfig, Severity } from "../lib/api";
 import { ScanPlanPanel, ScanStatusBar, useSiteScan } from "./SiteScan";
 
 const SEV_ORDER: Record<Severity, number> = {
@@ -16,6 +16,17 @@ const sevColor: Record<Severity, string> = {
   info: "var(--text-dim)",
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  new: "new",
+  confirmed: "confirmed",
+  resolved: "resolved",
+  "false-positive": "false positive",
+};
+
+function statusOf(f: Finding): FindingStatus {
+  return f.status ?? "new";
+}
+
 interface Props {
   onOpenFlow: (flowId: number) => void;
 }
@@ -26,6 +37,8 @@ export default function ScannerView({ onOpenFlow }: Props) {
   const [newTarget, setNewTarget] = useState("");
   const [planOpen, setPlanOpen] = useState(false);
   const [onlyTargets, setOnlyTargets] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>("open");
+  const [statusErr, setStatusErr] = useState("");
   const { progress } = useSiteScan();
   const targets = scope.hosts ?? [];
 
@@ -66,10 +79,26 @@ export default function ScannerView({ onOpenFlow }: Props) {
     onlyTargets && targets.length > 0
       ? findings.filter((f) => matchesTarget(hostOf(f.host), targets))
       : findings;
-  const counts = shown.reduce<Record<string, number>>((acc, f) => {
+  const visible =
+    statusFilter === "all"
+      ? shown
+      : statusFilter === "open"
+        ? shown.filter((f) => statusOf(f) === "new" || statusOf(f) === "confirmed")
+        : shown.filter((f) => statusOf(f) === statusFilter);
+  const counts = visible.reduce<Record<string, number>>((acc, f) => {
     acc[f.severity] = (acc[f.severity] ?? 0) + 1;
     return acc;
   }, {});
+
+  const setStatus = async (f: Finding, status: FindingStatus) => {
+    setStatusErr("");
+    try {
+      await api.setFindingStatus(f.id, status);
+      refresh();
+    } catch (e: any) {
+      setStatusErr("Set status failed: " + (e?.message ?? e));
+    }
+  };
 
   return (
     <div className="split-v">
@@ -142,6 +171,19 @@ export default function ScannerView({ onOpenFlow }: Props) {
           passive checks run on everything you browse; scans add active results
         </span>
         <span className="grow" />
+        {statusErr && <span className="err-text">{statusErr}</span>}
+        <select
+          title="Filter by triage status"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="open">open (new + confirmed)</option>
+          <option value="all">all statuses</option>
+          <option value="new">new</option>
+          <option value="confirmed">confirmed</option>
+          <option value="resolved">resolved</option>
+          <option value="false-positive">false positive</option>
+        </select>
         {targets.length > 0 && (
           <label className="row" title="Hide findings for sites that aren't targets">
             <input
@@ -162,11 +204,12 @@ export default function ScannerView({ onOpenFlow }: Props) {
               <th style={{ width: 240 }}>Issue</th>
               <th style={{ width: 200 }}>Host</th>
               <th>Detail</th>
+              <th style={{ width: 130 }}>Status</th>
               <th style={{ width: 90 }} />
             </tr>
           </thead>
           <tbody>
-            {shown.map((f) => (
+            {visible.map((f) => (
               <tr key={f.id}>
                 <td style={{ color: sevColor[f.severity], fontWeight: 700 }}>
                   {f.severity.toUpperCase()}
@@ -182,13 +225,28 @@ export default function ScannerView({ onOpenFlow }: Props) {
                 <td className="mono">{f.host}</td>
                 <td className="dim">{f.detail}</td>
                 <td>
+                  <select
+                    title="Triage status"
+                    value={statusOf(f)}
+                    onChange={(e) => setStatus(f, e.target.value as FindingStatus)}
+                  >
+                    {(["new", "confirmed", "resolved", "false-positive"] as FindingStatus[]).map(
+                      (s) => (
+                        <option key={s} value={s}>
+                          {STATUS_LABEL[s]}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </td>
+                <td>
                   {f.flowId > 0 && <button onClick={() => onOpenFlow(f.flowId)}>View</button>}
                 </td>
               </tr>
             ))}
-            {shown.length === 0 && (
+            {visible.length === 0 && (
               <tr>
-                <td colSpan={5} className="empty">
+                <td colSpan={6} className="empty">
                   {targets.length === 0
                     ? "No findings yet. Add your target above, browse it through Kanca, then click Scan targets."
                     : "No findings for your targets yet. Browse them through Kanca, then click Scan targets."}

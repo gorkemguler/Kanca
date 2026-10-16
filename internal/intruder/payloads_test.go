@@ -60,7 +60,7 @@ func TestProcessorsBase64AndHashes(t *testing.T) {
 
 func TestGenerateIntegratesWithAttack(t *testing.T) {
 	// A generated numeric set should drive an attack's plan count.
-	raw := []byte("GET /?id=§1§ HTTP/1.1\r\nHost: x\r\n\r\n")
+	raw := []byte("GET /?id=FUZZ HTTP/1.1\r\nHost: x\r\n\r\n")
 	tmpl, _ := Parse(raw, DefaultMarker)
 	payloads := PayloadSpec{Numbers: &NumberRange{From: 1, To: 10}}.Generate()
 	a, err := NewAttack(tmpl, Config{Type: Sniper, Scheme: "http", Host: "x", Payloads: [][]string{payloads}})

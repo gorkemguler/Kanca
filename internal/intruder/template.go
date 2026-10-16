@@ -6,13 +6,13 @@ package intruder
 
 import (
 	"bytes"
-	"errors"
 )
 
-// DefaultMarker delimits payload positions in a template. A position is the
-// text between a pair of markers, e.g. "id=§1§" marks the position whose base
-// value is "1". The section-sign is the same convention Burp uses.
-const DefaultMarker = "§"
+// DefaultMarker flags payload positions in a template: every occurrence is
+// one position, e.g. "id=FUZZ&q=FUZZ" has two. It is the same keyword
+// convention ffuf, gobuster and wfuzz use, so wordlists and habits transfer
+// over. Matching is a case-sensitive literal.
+const DefaultMarker = "FUZZ"
 
 // Template is a parsed request with N payload positions. Rebuilding it with a
 // set of N values is cheap and allocation-light.
@@ -34,42 +34,22 @@ func (t *Template) BaseValues() []string {
 	return out
 }
 
-// Parse splits raw around marker pairs. An odd number of markers is an error.
-// When no markers are present the whole request is treated as a single
-// position-free template (Positions()==0), which callers should reject.
+// Parse splits raw on every marker occurrence. Each occurrence is one payload
+// position whose base value is empty (the keyword replaces the original
+// value, ffuf-style). A template without markers has no positions
+// (Positions()==0), which callers should reject.
 func Parse(raw []byte, marker string) (*Template, error) {
 	if marker == "" {
 		marker = DefaultMarker
 	}
-	m := []byte(marker)
+	parts := bytes.Split(raw, []byte(marker))
 	t := &Template{}
-	rest := raw
-	open := true // next marker opens a position
-	var cur bytes.Buffer
-	for {
-		idx := bytes.Index(rest, m)
-		if idx < 0 {
-			cur.Write(rest)
-			break
+	for i, p := range parts {
+		t.segments = append(t.segments, append([]byte(nil), p...))
+		if i < len(parts)-1 {
+			t.baseValues = append(t.baseValues, "")
 		}
-		if open {
-			// Everything up to the marker is literal segment text.
-			cur.Write(rest[:idx])
-			t.segments = append(t.segments, append([]byte(nil), cur.Bytes()...))
-			cur.Reset()
-		} else {
-			// Everything up to the marker is the position's base value.
-			t.baseValues = append(t.baseValues, string(rest[:idx]))
-		}
-		open = !open
-		rest = rest[idx+len(m):]
 	}
-	if !open {
-		// We opened a position but never closed it.
-		return nil, errors.New("intruder: unbalanced payload markers")
-	}
-	// The trailing literal collected in cur is the final segment.
-	t.segments = append(t.segments, append([]byte(nil), cur.Bytes()...))
 	return t, nil
 }
 
