@@ -116,6 +116,9 @@ func (s *Sender) Send(ctx context.Context, raw []byte, scheme, host string) *Flo
 		return f
 	}
 	respBody, respBodyErr := captureBody(&resp.Body)
+	// A Send result is only the snapshot. Close the upstream so the rest of a
+	// truncated (over 64 MiB) response doesn't hold the connection open.
+	_ = resp.Body.Close()
 	respTruncated := errors.Is(respBodyErr, errBodyTooLarge)
 	if respBodyErr != nil && !respTruncated && f.Error == "" {
 		f.Error = "response body: " + respBodyErr.Error()
