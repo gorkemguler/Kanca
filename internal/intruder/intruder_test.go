@@ -14,7 +14,7 @@ import (
 )
 
 func TestParseAndRender(t *testing.T) {
-	raw := []byte("GET /?id=FUZZ&q=FUZZ HTTP/1.1\r\nHost: x\r\n\r\n")
+	raw := []byte("GET /?id=§1§&q=§two§ HTTP/1.1\r\nHost: x\r\n\r\n")
 	tmpl, err := Parse(raw, DefaultMarker)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -22,25 +22,90 @@ func TestParseAndRender(t *testing.T) {
 	if tmpl.Positions() != 2 {
 		t.Fatalf("positions = %d", tmpl.Positions())
 	}
-	// Keyword positions carry no base value (ffuf-style).
-	for _, bv := range tmpl.BaseValues() {
-		if bv != "" {
-			t.Fatalf("base values = %v, want all empty", tmpl.BaseValues())
-		}
+	if got := tmpl.BaseValues(); len(got) != 2 || got[0] != "1" || got[1] != "two" {
+		t.Fatalf("base values = %v, want [1 two]", got)
 	}
 	out := string(tmpl.Render([]string{"99", "z"}))
 	if !strings.Contains(out, "id=99&q=z") {
 		t.Fatalf("render = %q", out)
 	}
+	// Missing values fall back to the captured base value.
+	if out := string(tmpl.Render([]string{"99"})); !strings.Contains(out, "id=99&q=two") {
+		t.Fatalf("fallback render = %q", out)
+	}
 }
 
-func TestParseSingleKeywordIsOnePosition(t *testing.T) {
-	tmpl, err := Parse([]byte("id=FUZZ"), DefaultMarker)
+func TestParseSinglePairIsOnePosition(t *testing.T) {
+	tmpl, err := Parse([]byte("id=§1§"), DefaultMarker)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
 	if tmpl.Positions() != 1 {
 		t.Fatalf("positions = %d, want 1", tmpl.Positions())
+	}
+	if bv := tmpl.BaseValues(); len(bv) != 1 || bv[0] != "1" {
+		t.Fatalf("base values = %v, want [1]", bv)
+	}
+}
+
+func TestParseRejectsUnbalancedMarkers(t *testing.T) {
+	if _, err := Parse([]byte("id=§1 HTTP/1.1"), DefaultMarker); err == nil {
+		t.Fatal("Parse accepted an unclosed marker")
+	}
+	// An unbalanced § must not fall through to the FUZZ syntax.
+	if _, err := Parse([]byte("id=§1&q=FUZZ HTTP/1.1"), DefaultMarker); err == nil {
+		t.Fatal("Parse accepted an unclosed marker alongside FUZZ")
+	}
+}
+
+func TestParseKeepsLegacyFUZZKeyword(t *testing.T) {
+	tmpl, err := Parse([]byte("GET /?id=FUZZ&q=FUZZ HTTP/1.1"), DefaultMarker)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if tmpl.Positions() != 2 {
+		t.Fatalf("positions = %d, want 2", tmpl.Positions())
+	}
+	if got := tmpl.BaseValues(); len(got) != 2 || got[0] != "" || got[1] != "" {
+		t.Fatalf("legacy base values = %v, want empty", got)
+	}
+	if out := string(tmpl.Render([]string{"a", "b"})); out != "GET /?id=a&q=b HTTP/1.1" {
+		t.Fatalf("legacy render = %q", out)
+	}
+	// An explicit FUZZ marker is the legacy keyword syntax, not a pair.
+	if legacy, err := Parse([]byte("id=FUZZ&q=FUZZ"), "FUZZ"); err != nil || legacy.Positions() != 2 {
+		t.Fatalf("explicit FUZZ marker: positions=%d err=%v", legacy.Positions(), err)
+	}
+	// A custom marker is explicit: FUZZ stays literal text.
+	if other, err := Parse([]byte("id=FUZZ"), "%%"); err != nil || other.Positions() != 0 {
+		t.Fatalf("custom marker parsed FUZZ: positions=%d err=%v", other.Positions(), err)
+	}
+}
+
+func TestSniperKeepsOtherPositionsAtBase(t *testing.T) {
+	raw := []byte("GET /?a=§A§&b=§B§ HTTP/1.1\r\nHost: x\r\n\r\n")
+	tmpl, err := Parse(raw, DefaultMarker)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	a, err := NewAttack(tmpl, Config{
+		Type:     Sniper,
+		Payloads: [][]string{{"x"}},
+		Scheme:   "http",
+		Host:     "x",
+	})
+	if err != nil {
+		t.Fatalf("new attack: %v", err)
+	}
+	jobs := a.plan()
+	if len(jobs) != 2 {
+		t.Fatalf("jobs = %d, want 2", len(jobs))
+	}
+	if got := string(tmpl.Render(jobs[0].values)); !strings.Contains(got, "a=x&b=B") {
+		t.Fatalf("first job = %q, want sibling base value preserved", got)
+	}
+	if got := string(tmpl.Render(jobs[1].values)); !strings.Contains(got, "a=A&b=x") {
+		t.Fatalf("second job = %q, want sibling base value preserved", got)
 	}
 }
 
@@ -55,7 +120,7 @@ func TestParseWithoutMarkerHasNoPositions(t *testing.T) {
 }
 
 func TestPlanCounts(t *testing.T) {
-	raw := []byte("GET /?a=FUZZ&b=FUZZ HTTP/1.1\r\nHost: x\r\n\r\n")
+	raw := []byte("GET /?a=§1§&b=§1§ HTTP/1.1\r\nHost: x\r\n\r\n")
 	tmpl, _ := Parse(raw, DefaultMarker)
 	set := []string{"p", "q", "r"} // 3 payloads
 
@@ -94,7 +159,7 @@ func TestAttackRunsAgainstServer(t *testing.T) {
 	defer backend.Close()
 	u, _ := url.Parse(backend.URL)
 
-	raw := []byte("GET /?id=FUZZ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+	raw := []byte("GET /?id=§1§ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
 	tmpl, _ := Parse(raw, DefaultMarker)
 	a, err := NewAttack(tmpl, Config{
 		Type:        Sniper,
@@ -141,7 +206,7 @@ func TestGrepMatchLooksInsideCompressedResponses(t *testing.T) {
 	}))
 	defer backend.Close()
 	u, _ := url.Parse(backend.URL)
-	tmpl, _ := Parse([]byte("GET /?id=FUZZ HTTP/1.1\r\nHost: "+u.Host+"\r\nAccept-Encoding: gzip, br\r\n\r\n"), DefaultMarker)
+	tmpl, _ := Parse([]byte("GET /?id=§1§ HTTP/1.1\r\nHost: "+u.Host+"\r\nAccept-Encoding: gzip, br\r\n\r\n"), DefaultMarker)
 	a, err := NewAttack(tmpl, Config{Type: Sniper, Scheme: "http", Host: u.Host,
 		Payloads: [][]string{{"user", "admin"}}, GrepMatch: "SECRET-FLAG", Concurrency: 2})
 	if err != nil {
@@ -159,7 +224,7 @@ func TestGrepMatchLooksInsideCompressedResponses(t *testing.T) {
 }
 
 func TestClusterBombCapped(t *testing.T) {
-	raw := []byte("GET /?a=FUZZ&b=FUZZ&c=FUZZ HTTP/1.1\r\nHost: x\r\n\r\n")
+	raw := []byte("GET /?a=§1§&b=§1§&c=§1§ HTTP/1.1\r\nHost: x\r\n\r\n")
 	tmpl, _ := Parse(raw, DefaultMarker)
 	big := make([]string, 0, 300)
 	for i := 0; i < 300; i++ {
@@ -190,7 +255,7 @@ func TestRunStopsOnCancel(t *testing.T) {
 	defer backend.Close()
 	u, _ := url.Parse(backend.URL)
 
-	raw := []byte("GET /?id=FUZZ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+	raw := []byte("GET /?id=§1§ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
 	tmpl, _ := Parse(raw, DefaultMarker)
 	payloads := make([]string, 0, 500)
 	for i := 0; i < 500; i++ {
@@ -217,7 +282,7 @@ func TestExtractGrepHarvestsFirstGroup(t *testing.T) {
 	}))
 	defer backend.Close()
 	u, _ := url.Parse(backend.URL)
-	raw := []byte("GET /?id=FUZZ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+	raw := []byte("GET /?id=§1§ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
 	tmpl, _ := Parse(raw, DefaultMarker)
 	a, err := NewAttack(tmpl, Config{Type: Sniper, Scheme: "http", Host: u.Host, Payloads: [][]string{{"1"}}, ExtractGrep: `session ([a-z0-9]+)`})
 	if err != nil {
@@ -241,7 +306,7 @@ func TestExtractGrepCapsGreedyMatch(t *testing.T) {
 	}))
 	defer backend.Close()
 	u, _ := url.Parse(backend.URL)
-	raw := []byte("GET /?a=FUZZ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+	raw := []byte("GET /?a=§1§ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
 	tmpl, _ := Parse(raw, DefaultMarker)
 	a, err := NewAttack(tmpl, Config{Type: Sniper, Scheme: "http", Host: u.Host, Payloads: [][]string{{"1"}}, ExtractGrep: `prefix (.+) suffix`})
 	if err != nil {
@@ -261,7 +326,7 @@ func TestPauseFreezesDispatch(t *testing.T) {
 	}))
 	defer backend.Close()
 	u, _ := url.Parse(backend.URL)
-	raw := []byte("GET /?id=FUZZ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+	raw := []byte("GET /?id=§1§ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
 	tmpl, _ := Parse(raw, DefaultMarker)
 	payloads := make([]string, 0, 60)
 	for i := 0; i < 60; i++ {
@@ -310,7 +375,7 @@ func TestDelaySlowsDispatch(t *testing.T) {
 	}))
 	defer backend.Close()
 	u, _ := url.Parse(backend.URL)
-	raw := []byte("GET /?id=FUZZ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
+	raw := []byte("GET /?id=§1§ HTTP/1.1\r\nHost: " + u.Host + "\r\n\r\n")
 	tmpl, _ := Parse(raw, DefaultMarker)
 	payloads := []string{"a", "b", "c", "d"}
 	a, err := NewAttack(tmpl, Config{Type: Sniper, Scheme: "http", Host: u.Host, Payloads: [][]string{payloads}, Concurrency: 4, DelayMs: 60})

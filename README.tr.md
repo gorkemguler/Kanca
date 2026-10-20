@@ -231,6 +231,9 @@ Güvenlik önlemleri:
   anahtarı ve JWT'ler Claude'a `[[KANCA_SECRET_1]]` gibi yer tutucular olarak
   gider; Claude istek gönderdiğinde Kanca gerçek değerleri geri koyar.
   Göstermek için **Mask secrets** işaretini kaldırın.
+- **DELETE varsayılan olarak kapalı.** **Allow DELETE requests** işaretlenmeden
+  `send_request` ve `active_scan` DELETE isteklerini reddeder; çünkü taramayı
+  yeniden çalıştırmak silme işlemini tekrarlar ve gerçek veriyi kaldırabilir.
 - **Hiçbir şey gizli değil.** **Activity** listesi Claude'un attığı her adımı
   gösterir; gönderdiği istekler Proxy History'de **AI** etiketiyle, bulguları da
   **AI** rozetiyle görünür.
@@ -251,7 +254,7 @@ Arayüz olmadan, `kanca -scope shop.example -mcp` aynı uç noktayı
 | **Repeater** | Herhangi bir isteği alın, özgürce değiştirin ve istediğiniz kadar tekrar gönderin — her sekme kendi gönderim geçmişini tutar ve satır bazlı diff, bir yanıtı bir önceki gönderimle karşılaştırır. |
 | **Karşılaştırıcı (Comparer)** | Herhangi iki metni yan yana karşılaştırın: iki yanıt, iki istek veya yapıştırılan payload'lar — iki taraf da geçmişteki bir akıştan tek tıkla yüklenebilir. |
 | **JWT çalışma tezgâhı** | Bir token'ı çözün, payload'unu düzenleyin, yeniden imzalayın (HS256/384/512) ya da `none`'a indirgeyin ve bir secret'a karşı doğrulayın. |
-| **Intruder / fuzzer** | Dört saldırı tipiyle (sniper, battering ram, pitchfork, cluster bomb) otomatik payload enjeksiyonu, eşzamanlılık ve istek-arası gecikme kontrolü, duraklat/devam ettirme, grep-eşleşme vurgulama ve grep-extract ile değer hasadı. Pozisyonlar `FUZZ` anahtar kelimesiyle işaretlenir; payload setleri bir listeden veya üretilen sayısal bir aralıktan gelir; her set için işlemciler (URL/base64 encode, büyük/küçük harf, MD5/SHA-1/SHA-256) uygulanabilir. Kombinasyon uzayı güvenlik sınırıyla kesilir. |
+| **Intruder / fuzzer** | Dört saldırı tipiyle (sniper, battering ram, pitchfork, cluster bomb) otomatik payload enjeksiyonu, eşzamanlılık ve istek-arası gecikme kontrolü, duraklat/devam ettirme, grep-eşleşme vurgulama ve grep-extract ile değer hasadı. Pozisyonlar eşleşen `§` işaretleriyle belirtilir, ör. `/user/§1§` (`FUZZ` anahtar kelimesi isteğe bağlı eski kısayol olarak hâlâ kabul edilir); payload setleri bir listeden veya üretilen sayısal bir aralıktan gelir; her set için işlemciler (URL/base64 encode, büyük/küçük harf, MD5/SHA-1/SHA-256) uygulanabilir. Kombinasyon uzayı güvenlik sınırıyla kesilir. |
 | **Hedefler (Targets)** | **Scanner** sekmesinde belirlenir: test etmeye izinli olduğunuz host'lar (tam eşleşme, üst alan adı veya `*.` joker karakter; adres yapıştırmak da olur). Aktif tarama, site taraması ve AI asistanı bunların dışına dokunmaz; *Only record traffic to targets* seçilmedikçe her site yine kaydedilir. |
 | **Okunabilir gövdeler** | Tarayıcılar Kanca'nın çözemediği `br` ve `zstd` sıkıştırmalarını ister; Kanca sunuculardan yalnızca `gzip` ve `deflate` ister ve bunları görüntüleme, arama, Intruder grep ve tarama için çözer. |
 | **Site haritası** | Yakalanan trafik, düz bir günlük yerine host bazlı bir URL yolu ağacı olarak sunulur; böylece hedefin yapısını görebilirsiniz. |
@@ -379,7 +382,7 @@ düşürme/düzenleme yolları da dahildir (`internal/proxy/proxy_test.go`).
 
 Son eklenenler: istek karşılaştırıcı, JWT çalışma tezgâhı, bulgu triyaj akışı,
 geçmiş notları ve filtre preset'leri, CSRF PoC üretimi, Intruder
-duraklat/devam/gecikme/extract, FUZZ anahtar kelime pozisyonları, site
+duraklat/devam/gecikme/extract, `§…§` Intruder pozisyonları, site
 taramalarında DELETE opt-in ve insertion-point anahtarları ile zengin
 HAR dışa aktarımları.
 

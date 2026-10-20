@@ -49,7 +49,7 @@ func TestAnnotateFlowBinding(t *testing.T) {
 
 func TestJWTBindingsRoundTrip(t *testing.T) {
 	a := testApp()
-	tok, err := a.SignJWT(`{"alg":"HS256","typ":"JWT"}`, `{"sub":"1"}`, "s3cret")
+	tok, err := a.SignJWT(`{"typ":"JWT"}`, `{"sub":9007199254740993}`, "HS256", "s3cret")
 	if err != nil {
 		t.Fatalf("SignJWT: %v", err)
 	}
@@ -57,8 +57,11 @@ func TestJWTBindingsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeJWT: %v", err)
 	}
-	if dec.Algorithm != "HS256" || dec.Payload["sub"] != "1" {
+	if dec.Algorithm != "HS256" {
 		t.Fatalf("decoded wrong: %+v", dec)
+	}
+	if !strings.Contains(dec.PayloadJSON, "9007199254740993") {
+		t.Fatalf("64-bit claim lost precision: %s", dec.PayloadJSON)
 	}
 	ok, err := a.VerifyJWT(tok, "s3cret")
 	if err != nil || !ok {
@@ -70,7 +73,7 @@ func TestJWTBindingsRoundTrip(t *testing.T) {
 	if _, err := a.DecodeJWT("garbage"); err == nil {
 		t.Fatal("DecodeJWT accepted garbage")
 	}
-	if _, err := a.SignJWT("{bad", "{}", "s"); err == nil {
+	if _, err := a.SignJWT("{bad", "{}", "HS256", "s"); err == nil {
 		t.Fatal("SignJWT accepted bad header JSON")
 	}
 }

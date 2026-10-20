@@ -61,6 +61,13 @@ func responseToRaw(resp *http.Response, body []byte) []byte {
 // put on the wire — so a message renders identically every time and what the
 // UI shows matches what is sent.
 func writeHeaders(b *bytes.Buffer, h http.Header, body []byte) {
+	writeHeadersLen(b, h, int64(len(body)))
+}
+
+// writeHeadersLen is writeHeaders with an explicit Content-Length so a
+// truncated stored body can still advertise the real upstream length. A
+// negative n omits the header (close-delimited stream).
+func writeHeadersLen(b *bytes.Buffer, h http.Header, n int64) {
 	keys := make([]string, 0, len(h))
 	for key := range h {
 		keys = append(keys, key)
@@ -81,7 +88,9 @@ func writeHeaders(b *bytes.Buffer, h http.Header, body []byte) {
 			fmt.Fprintf(b, "%s: %s\r\n", key, v)
 		}
 	}
-	fmt.Fprintf(b, "Content-Length: %d\r\n", len(body))
+	if n >= 0 {
+		fmt.Fprintf(b, "Content-Length: %d\r\n", n)
+	}
 }
 
 // rawToRequest parses possibly user-edited raw bytes back into a request bound

@@ -6,13 +6,18 @@ package intruder
 
 import (
 	"bytes"
+	"errors"
 )
 
-// DefaultMarker flags payload positions in a template: every occurrence is
-// one position, e.g. "id=FUZZ&q=FUZZ" has two. It is the same keyword
-// convention ffuf, gobuster and wfuzz use, so wordlists and habits transfer
-// over. Matching is a case-sensitive literal.
-const DefaultMarker = "FUZZ"
+// DefaultMarker delimits payload positions in a template. A position is the
+// text between a pair of markers, e.g. "id=§1§" marks the position whose base
+// value is "1". The section sign is the same convention Burp uses.
+const DefaultMarker = "§"
+
+// legacyMarker is the keyword syntax earlier Kanca releases wrote. It is
+// accepted only when a template carries no DefaultMarker, so existing saved
+// requests keep working; it marks a position but has no base value to restore.
+const legacyMarker = "FUZZ"
 
 // Template is a parsed request with N payload positions. Rebuilding it with a
 // set of N values is cheap and allocation-light.
@@ -34,14 +39,56 @@ func (t *Template) BaseValues() []string {
 	return out
 }
 
-// Parse splits raw on every marker occurrence. Each occurrence is one payload
-// position whose base value is empty (the keyword replaces the original
-// value, ffuf-style). A template without markers has no positions
-// (Positions()==0), which callers should reject.
+// Parse splits raw around marker pairs. An odd number of markers is an error.
+// When no markers are present the whole request is treated as a single
+// position-free template (Positions()==0), which callers should reject.
 func Parse(raw []byte, marker string) (*Template, error) {
 	if marker == "" {
 		marker = DefaultMarker
 	}
+	m := []byte(marker)
+	if marker == legacyMarker {
+		// An explicit FUZZ marker keeps the keyword semantics old callers
+		// configured; it is not a pair delimiter.
+		return parseKeyword(raw, legacyMarker), nil
+	}
+	if marker == DefaultMarker && !bytes.Contains(raw, m) && bytes.Contains(raw, []byte(legacyMarker)) {
+		return parseKeyword(raw, legacyMarker), nil
+	}
+	t := &Template{}
+	rest := raw
+	open := true // next marker opens a position
+	var cur bytes.Buffer
+	for {
+		idx := bytes.Index(rest, m)
+		if idx < 0 {
+			cur.Write(rest)
+			break
+		}
+		if open {
+			// Everything up to the marker is literal segment text.
+			cur.Write(rest[:idx])
+			t.segments = append(t.segments, append([]byte(nil), cur.Bytes()...))
+			cur.Reset()
+		} else {
+			// Everything up to the marker is the position's base value.
+			t.baseValues = append(t.baseValues, string(rest[:idx]))
+		}
+		open = !open
+		rest = rest[idx+len(m):]
+	}
+	if !open {
+		// We opened a position but never closed it.
+		return nil, errors.New("intruder: unbalanced payload markers")
+	}
+	// The trailing literal collected in cur is the final segment.
+	t.segments = append(t.segments, append([]byte(nil), cur.Bytes()...))
+	return t, nil
+}
+
+// parseKeyword implements the legacy FUZZ syntax: every keyword occurrence is
+// a position with an empty base value.
+func parseKeyword(raw []byte, marker string) *Template {
 	parts := bytes.Split(raw, []byte(marker))
 	t := &Template{}
 	for i, p := range parts {
@@ -50,7 +97,7 @@ func Parse(raw []byte, marker string) (*Template, error) {
 			t.baseValues = append(t.baseValues, "")
 		}
 	}
-	return t, nil
+	return t
 }
 
 // Render substitutes values into the template. len(values) must equal

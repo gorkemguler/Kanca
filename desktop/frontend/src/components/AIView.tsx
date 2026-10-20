@@ -49,11 +49,16 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const change = async (enabled: boolean, level: MCPLevel, mask: boolean) => {
+  const change = async (
+    enabled: boolean,
+    level: MCPLevel,
+    mask: boolean,
+    allowDelete: boolean
+  ) => {
     setMsg(null);
     setBusy(true);
     try {
-      const s = await api.setMCPSettings(enabled, level, mask);
+      const s = await api.setMCPSettings(enabled, level, mask, allowDelete);
       apply(s);
       if (enabled !== st?.enabled) setActivity([]);
     } catch (e) {
@@ -141,7 +146,7 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
             type="checkbox"
             checked={st.enabled}
             disabled={busy}
-            onChange={(e) => change(e.target.checked, st.level, st.mask)}
+            onChange={(e) => change(e.target.checked, st.level, st.mask, st.allowDelete)}
           />
           <b>Allow AI assistants to use Kanca</b>
         </label>
@@ -170,7 +175,7 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
           name="ai-level"
           checked={st.level === "read"}
           disabled={busy}
-          onChange={() => change(st.enabled, "read", st.mask)}
+          onChange={() => change(st.enabled, "read", st.mask, st.allowDelete)}
         />
         <span>
           <b>Read only</b>
@@ -187,7 +192,7 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
           name="ai-level"
           checked={st.level === "readwrite"}
           disabled={busy}
-          onChange={() => change(st.enabled, "readwrite", st.mask)}
+          onChange={() => change(st.enabled, "readwrite", st.mask, st.allowDelete)}
         />
         <span>
           <b>Read and test</b>
@@ -223,7 +228,7 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
           type="checkbox"
           checked={st.mask}
           disabled={busy}
-          onChange={(e) => change(st.enabled, st.level, e.target.checked)}
+          onChange={(e) => change(st.enabled, st.level, e.target.checked, st.allowDelete)}
         />
         <span>
           <b>Mask secrets</b>
@@ -232,6 +237,25 @@ export default function AIView({ onStatus, onOpenTargets }: Props) {
             Cookies, tokens, passwords and API keys reach the assistant as
             placeholders like <span className="mono">[[KANCA_SECRET_1]]</span>;
             Kanca puts the real values back when it sends a request.
+          </span>
+        </span>
+      </label>
+      <label className="ai-option">
+        <input
+          type="checkbox"
+          checked={st.allowDelete}
+          disabled={busy}
+          onChange={(e) =>
+            change(st.enabled, st.level, st.mask, e.target.checked)
+          }
+        />
+        <span>
+          <b>Allow DELETE requests</b>
+          <span className="dim">
+            {" "}
+            Let the assistant send DELETE requests and active-scan captured
+            DELETEs. Off by default, because running a scan repeats the
+            deletion and may remove real data.
           </span>
         </span>
       </label>

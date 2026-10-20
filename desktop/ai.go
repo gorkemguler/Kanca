@@ -15,14 +15,15 @@ import (
 
 // MCPStatus describes the AI assistant endpoint for the settings screen.
 type MCPStatus struct {
-	Enabled bool   `json:"enabled"`
-	Running bool   `json:"running"`
-	Level   string `json:"level"`
-	Mask    bool   `json:"mask"`
-	URL     string `json:"url"`
-	Error   string `json:"error,omitempty"`
-	Sent    int    `json:"sent"`
-	Budget  int    `json:"budget"`
+	Enabled     bool   `json:"enabled"`
+	Running     bool   `json:"running"`
+	Level       string `json:"level"`
+	Mask        bool   `json:"mask"`
+	AllowDelete bool   `json:"allowDelete"`
+	URL         string `json:"url"`
+	Error       string `json:"error,omitempty"`
+	Sent        int    `json:"sent"`
+	Budget      int    `json:"budget"`
 	// ClaudeCode is the command that registers Kanca with Claude Code.
 	ClaudeCode string `json:"claudeCode"`
 	// ClaudeDesktop is the config entry for Claude Desktop, which launches this
@@ -56,7 +57,10 @@ func (a *App) newMCPServer() *mcp.Server {
 	}, func() mcp.Options {
 		a.mcpMu.Lock()
 		defer a.mcpMu.Unlock()
-		return mcp.Options{Level: a.mcpCfg.Level, Mask: a.mcpCfg.Mask}
+		return mcp.Options{
+			Level: a.mcpCfg.Level, Mask: a.mcpCfg.Mask,
+			AllowDelete: a.mcpCfg.AllowDelete,
+		}
 	})
 }
 
@@ -104,7 +108,8 @@ func (a *App) GetMCPStatus() MCPStatus {
 	cfg, svc, errText := a.mcpCfg, a.mcpSvc, a.mcpErr
 	a.mcpMu.Unlock()
 	st := MCPStatus{
-		Enabled: cfg.Enabled, Level: cfg.Level, Mask: cfg.Mask, URL: cfg.URL(),
+		Enabled: cfg.Enabled, Level: cfg.Level, Mask: cfg.Mask,
+		AllowDelete: cfg.AllowDelete, URL: cfg.URL(),
 		Error: errText, Budget: mcp.DefaultBudget,
 		ClaudeCode:        fmt.Sprintf(`claude mcp add --transport http kanca %s --header "Authorization: Bearer %s"`, cfg.URL(), cfg.Token),
 		ClaudeDesktopPath: claudeDesktopConfigPath(),
@@ -146,15 +151,17 @@ func (a *App) GetMCPActivity() []mcp.Activity {
 	return svc.Server.Activity()
 }
 
-// SetMCPSettings turns AI access on or off and sets its level and masking.
-// Level and masking apply immediately; toggling restarts the endpoint.
-func (a *App) SetMCPSettings(enabled bool, level string, mask bool) (MCPStatus, error) {
+// SetMCPSettings turns AI access on or off and sets its level, masking and
+// whether assistants may send DELETE. Settings apply immediately; toggling
+// restarts the endpoint.
+func (a *App) SetMCPSettings(enabled bool, level string, mask, allowDelete bool) (MCPStatus, error) {
 	if level != mcp.LevelRead && level != mcp.LevelReadWrite {
 		return a.GetMCPStatus(), fmt.Errorf("unknown access level %q", level)
 	}
 	a.mcpMu.Lock()
 	toggled := a.mcpCfg.Enabled != enabled
 	a.mcpCfg.Enabled, a.mcpCfg.Level, a.mcpCfg.Mask = enabled, level, mask
+	a.mcpCfg.AllowDelete = allowDelete
 	cfg := a.mcpCfg
 	a.mcpMu.Unlock()
 	if err := mcp.SaveConfig(configDir(), cfg); err != nil {

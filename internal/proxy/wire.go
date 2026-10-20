@@ -3,7 +3,7 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
-	"io"
+	"errors"
 	"net/http"
 	"time"
 )
@@ -87,18 +87,27 @@ func (s *Sender) Send(ctx context.Context, raw []byte, scheme, host string) *Flo
 		f.Duration = time.Since(start).Milliseconds()
 		return f
 	}
-	reqBody, _ := captureBody(&req.Body)
-	if LimitAcceptEncoding(req.Header) {
+	reqBody, reqBodyErr := captureBody(&req.Body)
+	reqTruncated := errors.Is(reqBodyErr, errBodyTooLarge)
+	if reqBodyErr != nil && !reqTruncated {
+		f.Error = "request body: " + reqBodyErr.Error()
+	}
+	// Only rebuild the raw snapshot when the body was fully captured; a
+	// truncated snapshot would advertise the wrong Content-Length.
+	if LimitAcceptEncoding(req.Header) && !reqTruncated {
 		raw = requestToRaw(req, reqBody)
 	}
 	req = req.WithContext(ctx)
-	req.Body = io.NopCloser(bytesReader(reqBody))
-	req.ContentLength = int64(len(reqBody))
+	// captureBody left req.Body replaying the complete payload; keep the
+	// declared length so large requests are sent in full.
 
 	f.Method = req.Method
 	f.Path = req.URL.RequestURI()
 	f.URL = scheme + "://" + host + req.URL.RequestURI()
-	f.Request = Message{Raw: raw, Headers: req.Header.Clone(), Body: reqBody, ContentLength: int64(len(reqBody))}
+	f.Request = Message{
+		Raw: raw, Headers: req.Header.Clone(), Body: reqBody,
+		ContentLength: req.ContentLength, Truncated: reqTruncated,
+	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -106,9 +115,16 @@ func (s *Sender) Send(ctx context.Context, raw []byte, scheme, host string) *Flo
 		f.Duration = time.Since(start).Milliseconds()
 		return f
 	}
-	respBody, _ := captureBody(&resp.Body)
+	respBody, respBodyErr := captureBody(&resp.Body)
+	respTruncated := errors.Is(respBodyErr, errBodyTooLarge)
+	if respBodyErr != nil && !respTruncated && f.Error == "" {
+		f.Error = "response body: " + respBodyErr.Error()
+	}
 	f.StatusCode = resp.StatusCode
-	f.Response = Message{Raw: responseToRaw(resp, respBody), Headers: resp.Header.Clone(), Body: respBody, ContentLength: int64(len(respBody))}
+	f.Response = Message{
+		Raw: responseToRaw(resp, respBody), Headers: resp.Header.Clone(), Body: respBody,
+		ContentLength: resp.ContentLength, Truncated: respTruncated,
+	}
 	f.Duration = time.Since(start).Milliseconds()
 	return f
 }

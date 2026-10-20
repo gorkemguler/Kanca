@@ -117,3 +117,111 @@ func TestLoadRejectsGarbage(t *testing.T) {
 		t.Fatal("Load accepted garbage, want an error")
 	}
 }
+
+func TestBodiesAreDedupedAgainstRaw(t *testing.T) {
+	orig := &proxy.Flow{
+		Method: "POST", Request: proxy.Message{
+			Raw:  []byte("POST /a HTTP/1.1\r\nContent-Length: 3\r\n\r\nq=1"),
+			Body: []byte("q=1"),
+		},
+		Response: proxy.Message{
+			Raw:  []byte("HTTP/1.1 200 OK\r\n\r\nhi"),
+			Body: []byte("hi"),
+		},
+	}
+	dto := FromFlow(orig)
+	if dto.ReqBody != nil || dto.RespBody != nil {
+		t.Fatalf("bodies not deduped: req=%q resp=%q", dto.ReqBody, dto.RespBody)
+	}
+	path := filepath.Join(t.TempDir(), "dedup.kanca.json")
+	if err := Save(path, File{Flows: []FlowDTO{dto}}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if strings.Contains(string(data), `"reqBody"`) || strings.Contains(string(data), `"respBody"`) {
+		t.Fatal("deduped bodies were written to disk")
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	got := loaded.FlowList()[0]
+	if string(got.Request.Body) != "q=1" || string(got.Response.Body) != "hi" {
+		t.Fatalf("bodies lost: req=%q resp=%q", got.Request.Body, got.Response.Body)
+	}
+}
+
+func TestTruncatedFlagsRoundTrip(t *testing.T) {
+	orig := &proxy.Flow{
+		Request:  proxy.Message{Raw: []byte("GET / HTTP/1.1\r\n\r\n"), Truncated: true},
+		Response: proxy.Message{Raw: []byte("HTTP/1.1 200 OK\r\n\r\nabc"), Truncated: true},
+	}
+	path := filepath.Join(t.TempDir(), "trunc.kanca.json")
+	if err := Save(path, File{Flows: []FlowDTO{FromFlow(orig)}}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	got := loaded.FlowList()[0]
+	if !got.Request.Truncated || !got.Response.Truncated {
+		t.Fatalf("truncated flags lost: req=%v resp=%v", got.Request.Truncated, got.Response.Truncated)
+	}
+}
+
+func TestSaveRejectsOversizedProject(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "big.kanca.json")
+	f := File{Flows: []FlowDTO{{ReqRaw: make([]byte, 1024)}}}
+	err := saveTo(path, f, 512)
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("Save accepted an oversized project: %v", err)
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Fatalf("Save left a file behind on rejection: %v", statErr)
+	}
+}
+
+func TestLoadRejectsOversizedFileBeforeReading(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "big.kanca.json")
+	fh, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := fh.Truncate(maxProjectBytes + 1); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+	if err := fh.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("Load accepted an oversized file: %v", err)
+	}
+}
+
+func TestSaveReplacesAtomicallyAndLeavesNoTempFiles(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "session.kanca.json")
+	for i := 0; i < 2; i++ {
+		if err := Save(path, File{Flows: []FlowDTO{{ID: int64(i)}}}); err != nil {
+			t.Fatalf("save %d: %v", i, err)
+		}
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("readdir: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "session.kanca.json" {
+		t.Fatalf("unexpected files after save: %v", entries)
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(loaded.Flows) != 1 || loaded.Flows[0].ID != 1 {
+		t.Fatalf("last save did not win: %+v", loaded.Flows)
+	}
+}

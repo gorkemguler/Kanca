@@ -22,6 +22,10 @@ type Config struct {
 	Mask    bool   `json:"mask"`
 	Addr    string `json:"addr"`
 	Token   string `json:"token"`
+	// AllowDelete lets assistants send DELETE requests (and active-scan a
+	// captured DELETE). It is off by default because each probe repeats the
+	// deletion.
+	AllowDelete bool `json:"allowDelete"`
 }
 
 func configPath(dir string) string { return filepath.Join(dir, "mcp.json") }

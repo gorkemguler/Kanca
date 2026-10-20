@@ -220,6 +220,9 @@ Guard rails:
 - **Secrets masked by default.** Cookies, tokens, passwords, API keys and JWTs
   reach Claude as placeholders like `[[KANCA_SECRET_1]]`, and Kanca puts the real
   values back when Claude sends a request. Untick **Mask secrets** to show them.
+- **DELETE is off by default.** `send_request` and `active_scan` refuse DELETE
+  requests unless **Allow DELETE requests** is ticked, because replaying a scan
+  repeats the deletion and can remove real data.
 - **Nothing hidden.** The **Activity** list shows every step Claude takes,
   requests it sends are tagged **AI** in Proxy History, and its findings carry an
   **AI** badge.
@@ -240,7 +243,7 @@ the [CLI](#quick-start--headless-cli) and prints the commands to connect.
 | **Repeater** | Take any request, tweak it freely, and resend it as many times as you like — each tab keeps its own send history, and a line diff compares a response with the previous send. |
 | **Comparer** | Compare any two texts side by side: two responses, two requests, or pasted payloads — load either side straight from a history flow. |
 | **JWT workbench** | Decode a token, edit its payload, re-sign it (HS256/384/512) or strip it to `none`, and verify against a secret. |
-| **Intruder / fuzzer** | Automated payload injection with four attack types (sniper, battering ram, pitchfork, cluster bomb), concurrency control, inter-request delay, pause/resume, grep-match highlighting and grep-extract harvesting. Positions are marked with the `FUZZ` keyword; payload sets come from a list or a generated numeric range, with per-set processors (URL/base64 encode, upper/lower, MD5/SHA-1/SHA-256). Combination space is capped for safety. |
+| **Intruder / fuzzer** | Automated payload injection with four attack types (sniper, battering ram, pitchfork, cluster bomb), concurrency control, inter-request delay, pause/resume, grep-match highlighting and grep-extract harvesting. Positions are marked with paired `§` markers, e.g. `/user/§1§` (the legacy `FUZZ` keyword is still accepted as an optional shorthand); payload sets come from a list or a generated numeric range, with per-set processors (URL/base64 encode, upper/lower, MD5/SHA-1/SHA-256). Combination space is capped for safety. |
 | **Targets** | Set in the **Scanner** tab: the hosts you may test (exact, parent-domain or `*.` wildcard; pasting a URL works). Active scans, site scans and the AI assistant refuse anything else, while every site is still recorded unless you choose *Only record traffic to targets*. |
 | **Readable bodies** | Browsers ask for `br` and `zstd`, which Kanca can't decode, so it asks servers only for `gzip` and `deflate` and decodes those for display, search, Intruder grep and scanning. |
 | **Site map** | Captured traffic arranged as a per-host tree of URL paths, so you can see a target's structure rather than a flat log. |
@@ -365,7 +368,7 @@ drop/edit paths (`internal/proxy/proxy_test.go`).
 
 Shipped recently: request comparer, JWT workbench, finding triage workflow,
 history annotations and filter presets, CSRF PoC generation, Intruder
-pause/resume/delay/extract, FUZZ keyword positions, DELETE opt-in and
+pause/resume/delay/extract, `§…§` Intruder positions, DELETE opt-in and
 insertion-point toggles for site scans, and richer HAR exports.
 
 Possible future work: authentication/session handling helpers (login macros,

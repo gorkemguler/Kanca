@@ -17,10 +17,14 @@ func TestCaptureBodyTruncatesHugeBodies(t *testing.T) {
 	if len(data) != maxBodyBytes {
 		t.Fatalf("len = %d, want %d", len(data), maxBodyBytes)
 	}
-	// The replacement reader must still serve the (truncated) bytes downstream.
+	// The replacement reader must still serve the complete payload downstream;
+	// only the stored snapshot is capped.
 	rest, rerr := io.ReadAll(rc)
-	if rerr != nil || len(rest) != maxBodyBytes {
-		t.Fatalf("replacement reader: len=%d err=%v", len(rest), rerr)
+	if rerr != nil || len(rest) != len(big) {
+		t.Fatalf("replacement reader: len=%d err=%v, want %d", len(rest), rerr, len(big))
+	}
+	if !bytes.Equal(rest, big) {
+		t.Fatal("replacement reader did not replay the original body")
 	}
 }
 

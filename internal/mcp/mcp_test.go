@@ -304,6 +304,50 @@ func TestSendRequestGuards(t *testing.T) {
 	}
 }
 
+func TestSendRequestDeleteRequiresUserSetting(t *testing.T) {
+	fx := newFixture(t)
+	raw := "DELETE /item/1 HTTP/1.1\r\nHost: " + fx.host + "\r\n\r\n"
+
+	text, isErr := fx.call(t, "send_request", map[string]any{"raw": raw, "scheme": "http"})
+	if !isErr || !strings.Contains(text, "DELETE requests are disabled") {
+		t.Fatalf("DELETE should be refused by default: %s", text)
+	}
+	select {
+	case r := <-fx.got:
+		t.Fatalf("a refused DELETE reached the backend: %s", r.Method)
+	default:
+	}
+
+	fx.opts.AllowDelete = true
+	text, isErr = fx.call(t, "send_request", map[string]any{"raw": raw, "scheme": "http"})
+	if isErr {
+		t.Fatalf("DELETE should work once allowed: %s", text)
+	}
+	<-fx.got
+	<-fx.gotBody
+}
+
+func TestActiveScanDeleteRequiresUserSetting(t *testing.T) {
+	fx := newFixture(t)
+	f := fx.capture(t, "DELETE /item?q=x HTTP/1.1\r\nHost: "+fx.host+"\r\n\r\n")
+
+	text, isErr := fx.call(t, "active_scan", map[string]any{"flow_id": f.ID})
+	if !isErr || !strings.Contains(text, "DELETE requests are disabled") {
+		t.Fatalf("DELETE scan should be refused by default: %s", text)
+	}
+
+	fx.opts.AllowDelete = true
+	go func() { // drain the scan's probes
+		for range fx.got {
+			<-fx.gotBody
+		}
+	}()
+	text, isErr = fx.call(t, "active_scan", map[string]any{"flow_id": f.ID})
+	if isErr {
+		t.Fatalf("DELETE scan should work once allowed: %s", text)
+	}
+}
+
 func TestActiveScanAndFindings(t *testing.T) {
 	fx := newFixture(t)
 	f := fx.capture(t, "GET /?q=hi HTTP/1.1\r\nHost: "+fx.host+"\r\n\r\n")

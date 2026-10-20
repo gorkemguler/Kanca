@@ -1,6 +1,8 @@
 package jwt
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -11,7 +13,11 @@ const testSecret = "kanca-test-secret"
 // bytes could drift with JSON key order; round-trip instead).
 func mustSign(t *testing.T, alg string, payload map[string]any) string {
 	t.Helper()
-	tok, err := Sign(map[string]any{"alg": alg, "typ": "JWT"}, payload, []byte(testSecret))
+	pb, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	tok, err := Sign([]byte(`{"alg":"`+alg+`","typ":"JWT"}`), pb, alg, []byte(testSecret))
 	if err != nil {
 		t.Fatalf("sign %s: %v", alg, err)
 	}
@@ -54,7 +60,7 @@ func TestVerifyAcceptsAndRejects(t *testing.T) {
 }
 
 func TestNoneHandling(t *testing.T) {
-	tok, err := Sign(map[string]any{"alg": "none"}, map[string]any{"admin": true}, nil)
+	tok, err := Sign([]byte(`{"typ":"JWT"}`), []byte(`{"admin":true}`), "none", nil)
 	if err != nil {
 		t.Fatalf("sign none: %v", err)
 	}
@@ -79,8 +85,58 @@ func TestDecodeRejectsGarbage(t *testing.T) {
 }
 
 func TestSignRejectsAsymmetric(t *testing.T) {
-	if _, err := Sign(map[string]any{"alg": "RS256"}, map[string]any{}, []byte("s")); err == nil {
+	if _, err := Sign([]byte(`{}`), []byte(`{}`), "RS256", []byte("s")); err == nil {
 		t.Fatal("Sign(RS256) should refuse (no key handling here)")
+	}
+}
+
+func TestSignRejectsEmptyAlg(t *testing.T) {
+	if _, err := Sign([]byte(`{"alg":"HS256"}`), []byte(`{}`), " ", []byte("s")); err == nil {
+		t.Fatal("Sign accepted an empty alg")
+	}
+}
+
+func TestLargeIntegerClaimsSurviveRoundTrip(t *testing.T) {
+	// 9007199254740993 is 2^53+1: a float64 cannot represent it, so this claim
+	// is the canary for precision loss on decode/re-sign.
+	payloadJSON := `{"sub":9007199254740993,"nested":{"id":18446744073709551615}}`
+	tok, err := Sign([]byte(`{"typ":"JWT"}`), []byte(payloadJSON), "HS256", []byte(testSecret))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	dec, err := Decode(tok)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !strings.Contains(dec.PayloadJSON, `"sub":9007199254740993`) ||
+		!strings.Contains(dec.PayloadJSON, `"id":18446744073709551615`) {
+		t.Fatalf("payload JSON lost digits: %q", dec.PayloadJSON)
+	}
+	sub, ok := dec.Payload["sub"].(json.Number)
+	if !ok || sub.String() != "9007199254740993" {
+		t.Fatalf("sub lost precision: %#v", dec.Payload["sub"])
+	}
+	nested, ok := dec.Payload["nested"].(map[string]any)
+	if !ok {
+		t.Fatalf("nested not an object: %#v", dec.Payload["nested"])
+	}
+	id, ok := nested["id"].(json.Number)
+	if !ok || id.String() != "18446744073709551615" {
+		t.Fatalf("nested id lost precision: %#v", nested["id"])
+	}
+	// Re-sign the decoded raw payload: the bytes must stay identical.
+	signedPayload := dec.PayloadJSON
+	re, err := Sign([]byte(dec.HeaderJSON), []byte(signedPayload), "HS256", []byte(testSecret))
+	if err != nil {
+		t.Fatalf("re-sign: %v", err)
+	}
+	parts := strings.Split(re, ".")
+	got, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("decode segment: %v", err)
+	}
+	if string(got) != signedPayload {
+		t.Fatalf("re-signed payload drifted: %s", got)
 	}
 }
 

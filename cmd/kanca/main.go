@@ -136,7 +136,12 @@ func startMCP(dir string, store *history.Store, findings *scanner.Scanner, hosts
 		Scope:      func() func(string) bool { return scope.Matcher(hosts) },
 		ScopeHosts: func() []string { return hosts },
 		Version:    "cli",
-	}, func() mcp.Options { return mcp.Options{Level: cfg.Level, Mask: cfg.Mask} })
+	}, func() mcp.Options {
+		// AllowDelete is a persisted user setting, not a session flag: the
+		// desktop app (or a hand-edited mcp.json) decides whether assistants
+		// may send DELETE.
+		return mcp.Options{Level: cfg.Level, Mask: cfg.Mask, AllowDelete: cfg.AllowDelete}
+	})
 	if err := (&mcp.Service{Server: srv}).Start(cfg.Addr, cfg.Token); err != nil {
 		fatal("starting AI endpoint: %v", err)
 	}
