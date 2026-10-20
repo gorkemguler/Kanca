@@ -117,6 +117,10 @@ export interface IntruderPreview {
 export interface JwtToken {
   header: Record<string, unknown>;
   payload: Record<string, unknown>;
+  /** Decoded JSON exactly as it appeared in the token; use these for editing
+   *  and re-signing so 64-bit numbers (sub, exp, nonces) stay exact in JS. */
+  headerJson: string;
+  payloadJson: string;
   alg: string;
   unsigned: boolean;
 }
@@ -207,6 +211,7 @@ export interface MCPStatus {
   running: boolean;
   level: MCPLevel;
   mask: boolean;
+  allowDelete: boolean;
   url: string;
   error?: string;
   sent: number;
@@ -333,10 +338,20 @@ interface WailsBackend {
   PauseIntruder(paused: boolean): Promise<void>;
   StopIntruder(): Promise<void>;
   DecodeJWT(token: string): Promise<JwtToken>;
-  SignJWT(header: string, payload: string, secret: string): Promise<string>;
+  SignJWT(
+    header: string,
+    payload: string,
+    alg: string,
+    secret: string
+  ): Promise<string>;
   VerifyJWT(token: string, secret: string): Promise<boolean>;
   GetMCPStatus(): Promise<MCPStatus>;
-  SetMCPSettings(enabled: boolean, level: MCPLevel, mask: boolean): Promise<MCPStatus>;
+  SetMCPSettings(
+    enabled: boolean,
+    level: MCPLevel,
+    mask: boolean,
+    allowDelete: boolean
+  ): Promise<MCPStatus>;
   RegenerateMCPToken(): Promise<MCPStatus>;
   GetMCPActivity(): Promise<MCPActivity[]>;
   AddToClaudeDesktop(): Promise<string>;
@@ -424,12 +439,16 @@ export const api = {
   pauseIntruder: (paused: boolean) => backend().PauseIntruder(paused),
   stopIntruder: () => backend().StopIntruder(),
   decodeJWT: (token: string) => backend().DecodeJWT(token),
-  signJWT: (header: string, payload: string, secret: string) =>
-    backend().SignJWT(header, payload, secret),
+  signJWT: (header: string, payload: string, alg: string, secret: string) =>
+    backend().SignJWT(header, payload, alg, secret),
   verifyJWT: (token: string, secret: string) => backend().VerifyJWT(token, secret),
   getMCPStatus: () => backend().GetMCPStatus(),
-  setMCPSettings: (enabled: boolean, level: MCPLevel, mask: boolean) =>
-    backend().SetMCPSettings(enabled, level, mask),
+  setMCPSettings: (
+    enabled: boolean,
+    level: MCPLevel,
+    mask: boolean,
+    allowDelete: boolean
+  ) => backend().SetMCPSettings(enabled, level, mask, allowDelete),
   regenerateMCPToken: () => backend().RegenerateMCPToken(),
   getMCPActivity: () => backend().GetMCPActivity(),
   addToClaudeDesktop: () => backend().AddToClaudeDesktop(),

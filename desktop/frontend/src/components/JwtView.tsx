@@ -1,14 +1,6 @@
 import { useState } from "react";
 import { api, copyText, JwtToken } from "../lib/api";
 
-function pretty(v: unknown): string {
-  try {
-    return JSON.stringify(v, null, 2);
-  } catch {
-    return String(v);
-  }
-}
-
 /** JWT workbench: decode, edit the payload, re-sign (HMAC) or strip to
  *  "none", and verify against a secret. For authorised testing only. */
 export default function JwtView() {
@@ -32,7 +24,9 @@ export default function JwtView() {
     try {
       const t = await api.decodeJWT(input);
       setDecoded(t);
-      setPayloadText(pretty(t.payload));
+      // The raw segment, not the number-coerced map: JSON.parse in the
+      // webview rounds integers above 2^53.
+      setPayloadText(t.payloadJson);
       setAlg(t.alg);
     } catch (e: any) {
       setDecoded(null);
@@ -47,10 +41,10 @@ export default function JwtView() {
     setVerdict("");
     setBusy("sign");
     try {
-      // Keep decoded header fields (e.g. kid) and only override the alg.
-      const prev = (decoded?.header ?? {}) as Record<string, unknown>;
-      const header = JSON.stringify({ ...prev, alg, typ: prev.typ ?? "JWT" });
-      const out = await api.signJWT(header, payloadText, secret);
+      // Keep the decoded header fields (e.g. kid) and let the backend write
+      // the selected alg into the signed header.
+      const header = decoded?.headerJson || "{}";
+      const out = await api.signJWT(header, payloadText, alg, secret);
       setOutput(out);
       setToken(out);
     } catch (e: any) {
@@ -128,7 +122,7 @@ export default function JwtView() {
             )}
           </div>
           <div className="pane msg" style={{ flex: "0 0 32%", overflow: "auto" }}>
-            <pre style={{ margin: 0 }}>{decoded ? pretty(decoded.header) : "—"}</pre>
+            <pre style={{ margin: 0 }}>{decoded ? decoded.headerJson : "—"}</pre>
           </div>
           <div className="toolbar">
             <b>Payload (editable)</b>

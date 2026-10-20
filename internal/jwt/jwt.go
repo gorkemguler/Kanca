@@ -5,6 +5,7 @@
 package jwt
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -13,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"io"
 	"strings"
 )
 
@@ -21,9 +23,15 @@ const maxTokenBytes = 64 << 10
 
 // Token is a decoded JWT.
 type Token struct {
-	Header    map[string]any `json:"header"`
-	Payload   map[string]any `json:"payload"`
-	Algorithm string         `json:"alg"`
+	Header  map[string]any `json:"header"`
+	Payload map[string]any `json:"payload"`
+	// HeaderJSON/PayloadJSON hold the decoded JSON exactly as it appeared in
+	// the token. The maps above decode numbers as json.Number, but a webview
+	// re-decodes them as IEEE-754 doubles; round-tripping these strings keeps
+	// 64-bit claims (subject IDs, timestamps, nonces) exact in the editor.
+	HeaderJSON  string `json:"headerJson"`
+	PayloadJSON string `json:"payloadJson"`
+	Algorithm   string `json:"alg"`
 	// SignedParts holds the two ASCII segments the signature covers.
 	SignedParts [2]string `json:"-"`
 	Signature   []byte    `json:"-"`
@@ -49,17 +57,20 @@ func Decode(token string) (*Token, error) {
 		return nil, fmt.Errorf("jwt: bad payload encoding: %w", err)
 	}
 	var header, payload map[string]any
-	if err := json.Unmarshal(hb, &header); err != nil {
+	if err := unmarshalObject(hb, &header); err != nil {
 		return nil, fmt.Errorf("jwt: bad header JSON: %w", err)
 	}
-	if err := json.Unmarshal(pb, &payload); err != nil {
+	if err := unmarshalObject(pb, &payload); err != nil {
 		return nil, fmt.Errorf("jwt: bad payload JSON: %w", err)
 	}
 	alg, _ := header["alg"].(string)
 	if alg == "" {
 		return nil, errors.New("jwt: header has no alg")
 	}
-	t := &Token{Header: header, Payload: payload, Algorithm: alg}
+	t := &Token{
+		Header: header, Payload: payload,
+		HeaderJSON: string(hb), PayloadJSON: string(pb), Algorithm: alg,
+	}
 	t.SignedParts = [2]string{parts[0], parts[1]}
 	if parts[2] == "" {
 		t.Unsigned = true
@@ -91,13 +102,45 @@ func hashFor(alg string) (func() hash.Hash, error) {
 	}
 }
 
-// Sign builds a token from a header/payload pair with an HMAC secret.
-// alg "none" produces an unsigned token (for probing accept-none flaws).
-func Sign(header, payload map[string]any, secret []byte) (string, error) {
-	alg, _ := header["alg"].(string)
-	if alg == "" {
-		return "", errors.New("jwt: header has no alg")
+// unmarshalObject decodes exactly one JSON object, rejecting trailing data.
+// Numbers stay as json.Number so a 64-bit claim is not silently rounded.
+func unmarshalObject(data []byte, dst *map[string]any) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	if err := dec.Decode(dst); err != nil {
+		return err
 	}
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return errors.New("unexpected data after JSON object")
+		}
+		return err
+	}
+	if *dst == nil {
+		return errors.New("want a JSON object")
+	}
+	return nil
+}
+
+// Sign builds a token from raw header/payload JSON objects and an explicit
+// algorithm with an HMAC secret. alg is written into the header, so the
+// signed header and the signature can never disagree. alg "none" produces an
+// unsigned token (for probing accept-none flaws). Raw JSON is decoded with
+// json.Number, preserving 64-bit numeric claims exactly.
+func Sign(headerJSON, payloadJSON []byte, alg string, secret []byte) (string, error) {
+	alg = strings.TrimSpace(alg)
+	if alg == "" {
+		return "", errors.New("jwt: no alg selected")
+	}
+	var header, payload map[string]any
+	if err := unmarshalObject(headerJSON, &header); err != nil {
+		return "", fmt.Errorf("jwt: bad header JSON: %w", err)
+	}
+	if err := unmarshalObject(payloadJSON, &payload); err != nil {
+		return "", fmt.Errorf("jwt: bad payload JSON: %w", err)
+	}
+	header["alg"] = alg
 	hb, err := json.Marshal(header)
 	if err != nil {
 		return "", fmt.Errorf("jwt: marshal header: %w", err)

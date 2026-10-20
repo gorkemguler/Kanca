@@ -46,6 +46,16 @@ type Flow struct {
 	// responseClose mirrors the upstream response's Connection: close so the
 	// tunnel loop knows not to reuse the decrypted connection.
 	responseClose bool
+
+	// responseStream is the complete, live response body when the stored
+	// snapshot was truncated at maxBodyBytes. The tunnel relays it to the
+	// client after roundTrip returns, so a large response is never shortened.
+	// It is nil for flows that do not need relaying (e.g. Sender results).
+	responseStream io.ReadCloser
+	// responseProto and responseStatus preserve the upstream status line for
+	// relaying a truncated response without rebuilding it from StatusCode.
+	responseProto  string
+	responseStatus string
 }
 
 // Message is a serialisable snapshot of one side of a transaction. Headers are
@@ -59,6 +69,10 @@ type Message struct {
 	Body    []byte      `json:"-"`
 	// ContentLength is the declared length; -1 when unknown.
 	ContentLength int64 `json:"contentLength"`
+	// Truncated reports that Body holds only the first maxBodyBytes of the
+	// payload. The full message is still forwarded; only the stored snapshot
+	// is capped.
+	Truncated bool `json:"truncated,omitempty"`
 }
 
 // BodyString returns the body as text for display. Callers that need to know
@@ -73,24 +87,40 @@ var flowSeq int64
 // nextFlowID hands out process-unique, monotonically increasing flow IDs.
 func nextFlowID() int64 { return atomic.AddInt64(&flowSeq, 1) }
 
-// captureBody reads and returns the full body, leaving a fresh reader in its
-// place so the caller can still forward the message downstream. A nil body
-// yields an empty slice. Bodies larger than maxBodyBytes are truncated and
-// reported via errBodyTooLarge.
+// captureBody buffers at most maxBodyBytes for inspection and leaves a reader
+// in place that replays the complete body, so callers can still forward the
+// message downstream. A nil body yields an empty slice. Bodies larger than
+// maxBodyBytes return the stored prefix plus errBodyTooLarge; the replacement
+// reader serves the prefix followed by the rest of the original stream, so
+// forwarding is never shortened.
 func captureBody(rc *io.ReadCloser) ([]byte, error) {
 	if rc == nil || *rc == nil {
 		return []byte{}, nil
 	}
-	data, err := io.ReadAll(io.LimitReader(*rc, maxBodyBytes+1))
-	_ = (*rc).Close()
+	head, err := io.ReadAll(io.LimitReader(*rc, maxBodyBytes+1))
 	if err != nil {
-		return data, err
+		// A read error makes the rest of the stream unusable, but leave a
+		// readable (partial) body rather than a closed one.
+		_ = (*rc).Close()
+		*rc = io.NopCloser(bytes.NewReader(head))
+		return head, err
 	}
-	if len(data) > maxBodyBytes {
-		data = data[:maxBodyBytes]
-		*rc = io.NopCloser(bytes.NewReader(data))
-		return data, errBodyTooLarge
+	if len(head) > maxBodyBytes {
+		original := *rc
+		*rc = replayReadCloser{
+			Reader: io.MultiReader(bytes.NewReader(head), original),
+			Closer: original,
+		}
+		return head[:maxBodyBytes], errBodyTooLarge
 	}
-	*rc = io.NopCloser(bytes.NewReader(data))
-	return data, nil
+	_ = (*rc).Close()
+	*rc = io.NopCloser(bytes.NewReader(head))
+	return head, nil
+}
+
+// replayReadCloser replays a buffered prefix and then continues with the
+// original stream, closing it once the caller is done.
+type replayReadCloser struct {
+	io.Reader
+	io.Closer
 }

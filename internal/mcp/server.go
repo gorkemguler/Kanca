@@ -69,9 +69,10 @@ const maxActivity = 200
 // Options are the user-controlled settings, read on every call so changes
 // apply immediately.
 type Options struct {
-	Level  string
-	Mask   bool
-	Budget int
+	Level       string
+	Mask        bool
+	Budget      int
+	AllowDelete bool
 }
 
 // Server handles MCP messages. Create it with NewServer.

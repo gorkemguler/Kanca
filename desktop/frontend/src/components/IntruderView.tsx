@@ -71,9 +71,9 @@ export default function IntruderView({ seed, clearSeed }: Props) {
   const [scheme, setScheme] = useState("https");
   const [host, setHost] = useState("example.com");
   const [template, setTemplate] = useState(
-    "GET /?q=FUZZ HTTP/1.1\r\nHost: example.com\r\n\r\n"
+    "GET /?q=§1§ HTTP/1.1\r\nHost: example.com\r\n\r\n"
   );
-  const [marker, setMarker] = useState("FUZZ");
+  const [marker, setMarker] = useState("§");
   const [type, setType] = useState<AttackType>("sniper");
   const [threads, setThreads] = useState(10);
   const [delayMs, setDelayMs] = useState(0);
@@ -90,28 +90,40 @@ export default function IntruderView({ seed, clearSeed }: Props) {
   const bufRef = useRef<IntruderResult[]>([]);
   const templateRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Live position count: every marker occurrence is one position.
-  const markerCount = marker ? template.split(marker).length - 1 : 0;
+  // Live position count: a position is the text between two § markers. Old
+  // templates saved with the FUZZ keyword keep the keyword semantics (one
+  // occurrence per position, no base value) when no § appears at all.
+  const legacy =
+    marker === "FUZZ" ||
+    (marker === "§" && !template.includes("§") && template.includes("FUZZ"));
+  const activeMarker = legacy ? "FUZZ" : marker;
+  const markerHits = activeMarker
+    ? template.split(activeMarker).length - 1
+    : 0;
+  const markerCount = legacy ? markerHits : Math.floor(markerHits / 2);
+  const markerUnbalanced = !legacy && markerHits % 2 === 1;
 
-  /** Replace the textarea's current selection with one marker. */
+  /** Wrap the textarea's current selection in a marker pair. */
   const markSelection = () => {
     const el = templateRef.current;
     if (!el || !marker) return;
     const { selectionStart: s, selectionEnd: e, value } = el;
     if (s == null || e == null || s === e) return;
-    const next = value.slice(0, s) + marker + value.slice(e);
+    const next =
+      value.slice(0, s) + marker + value.slice(s, e) + marker + value.slice(e);
     setTemplate(next);
-    // Leave the caret after the inserted marker.
+    // Leave the caret after the closing marker.
+    const caret = e + 2 * marker.length;
     requestAnimationFrame(() => {
       el.focus();
-      el.setSelectionRange(s + marker.length, s + marker.length);
+      el.setSelectionRange(caret, caret);
     });
   };
 
   /** Strip every marker from the template. */
   const clearMarkers = () => {
-    if (!marker) return;
-    setTemplate((t) => t.split(marker).join(""));
+    if (!activeMarker) return;
+    setTemplate((t) => t.split(activeMarker).join(""));
   };
 
   useEffect(() => {
@@ -244,10 +256,15 @@ export default function IntruderView({ seed, clearSeed }: Props) {
     <div className="split-h">
       <div className="pane pad col" style={{ flex: "0 0 42%" }}>
         <div className="callout">
-          Mark positions with the <b>{marker || "FUZZ"}</b> keyword, e.g.{" "}
-          <span className="mono">id={marker || "FUZZ"}</span> — or select a value
-          and hit <b>FUZZ selection</b>. Case-sensitive literal (so avoid words
-          containing it). Run only against systems you are authorised to test.
+          Wrap the value to fuzz in <b>{marker || "§"}</b> pairs, e.g.{" "}
+          <span className="mono">
+            id={marker || "§"}1{marker || "§"}
+          </span>{" "}
+          — or select a value and hit <b>Mark selection</b>. Every pair is one
+          payload position and the text inside it is the base value; old
+          templates that still use the <span className="mono">FUZZ</span>{" "}
+          keyword keep working. Run only against systems you are authorised to
+          test.
         </div>
         <div className="row">
           <label className="field">
@@ -280,29 +297,37 @@ export default function IntruderView({ seed, clearSeed }: Props) {
         <div className="row">
           <button
             onClick={markSelection}
-            title="Replace the selected text with a payload marker"
+            title="Wrap the selected text in a marker pair"
             disabled={!marker}
           >
-            FUZZ selection
+            Mark selection
           </button>
           <button
             onClick={clearMarkers}
             title="Remove every marker from the template"
-            disabled={!marker || markerCount === 0}
+            disabled={!marker || markerHits === 0}
           >
-            Clear FUZZ
+            Clear markers
           </button>
           <span
             className="pill"
             title={
               !marker
                 ? "Set a marker first"
-                : `${markerCount} payload positions`
+                : markerUnbalanced
+                  ? "Unbalanced markers: every position needs a closing marker"
+                  : legacy
+                    ? `${markerCount} legacy FUZZ positions (no base values)`
+                    : `${markerCount} payload positions`
             }
           >
             {!marker
               ? "no marker"
-              : `${markerCount} position${markerCount === 1 ? "" : "s"}`}
+              : markerUnbalanced
+                ? "unbalanced markers"
+                : legacy
+                  ? `${markerCount} legacy FUZZ position${markerCount === 1 ? "" : "s"}`
+                  : `${markerCount} position${markerCount === 1 ? "" : "s"}`}
           </span>
         </div>
         <div className="row">

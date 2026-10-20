@@ -1,6 +1,7 @@
 package proxy_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -328,5 +330,149 @@ func TestRewriterModifiesRequestAndResponse(t *testing.T) {
 	resp.Body.Close()
 	if string(body) != "seen=OVERRIDE" {
 		t.Fatalf("rewrite pipeline wrong, body = %q", body)
+	}
+}
+
+// largeBodyBytes is just over the 64 MiB inspection cap, so the capture keeps
+// only a prefix while forwarding must still deliver every byte.
+const largeBodyBytes = 64<<20 + 4096
+
+func TestProxyForwardsLargeRequestsInFull(t *testing.T) {
+	payload := bytes.Repeat([]byte("x"), largeBodyBytes)
+	for _, tc := range []struct {
+		name string
+		tls  bool
+	}{
+		{"http", false},
+		{"https", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			received := make(chan int64, 1)
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				n, _ := io.Copy(io.Discard, r.Body)
+				received <- n
+				if r.ContentLength != int64(len(payload)) {
+					t.Errorf("upstream ContentLength = %d, want %d", r.ContentLength, len(payload))
+				}
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, "stored")
+			})
+			backend := httptest.NewServer(handler)
+			if tc.tls {
+				backend.Close()
+				backend = httptest.NewTLSServer(handler)
+			}
+			defer backend.Close()
+
+			p, ca := newProxy(t)
+			flows := make(chan *proxy.Flow, 1)
+			p.OnFlow(func(f *proxy.Flow) {
+				select {
+				case flows <- f:
+				default:
+				}
+			})
+
+			client := clientThrough(t, p, ca)
+			client.Timeout = 60 * time.Second
+			req, err := http.NewRequest(http.MethodPost, backend.URL+"/upload", bytes.NewReader(payload))
+			if err != nil {
+				t.Fatalf("new request: %v", err)
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatalf("POST: %v", err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK || string(body) != "stored" {
+				t.Fatalf("response = %d %q", resp.StatusCode, body)
+			}
+			if n := <-received; n != int64(len(payload)) {
+				t.Fatalf("upstream received %d bytes, want %d", n, len(payload))
+			}
+
+			select {
+			case f := <-flows:
+				if f.Error != "" {
+					t.Fatalf("flow error: %s", f.Error)
+				}
+				if !f.Request.Truncated {
+					t.Fatal("request not marked truncated despite exceeding the cap")
+				}
+				if len(f.Request.Body) != 64<<20 {
+					t.Fatalf("stored request body = %d, want %d", len(f.Request.Body), 64<<20)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("flow not captured")
+			}
+		})
+	}
+}
+
+func TestProxyForwardsLargeResponsesInFull(t *testing.T) {
+	payload := bytes.Repeat([]byte("y"), largeBodyBytes)
+	for _, tc := range []struct {
+		name string
+		tls  bool
+	}{
+		{"http", false},
+		{"https", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(payload)
+			})
+			backend := httptest.NewServer(handler)
+			if tc.tls {
+				backend.Close()
+				backend = httptest.NewTLSServer(handler)
+			}
+			defer backend.Close()
+
+			p, ca := newProxy(t)
+			flows := make(chan *proxy.Flow, 1)
+			p.OnFlow(func(f *proxy.Flow) {
+				select {
+				case flows <- f:
+				default:
+				}
+			})
+
+			client := clientThrough(t, p, ca)
+			client.Timeout = 60 * time.Second
+			resp, err := client.Get(backend.URL + "/download")
+			if err != nil {
+				t.Fatalf("GET: %v", err)
+			}
+			n, err := io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				t.Fatalf("read response: %v", err)
+			}
+			if n != int64(len(payload)) {
+				t.Fatalf("client received %d bytes, want %d", n, len(payload))
+			}
+
+			select {
+			case f := <-flows:
+				if f.Error != "" {
+					t.Fatalf("flow error: %s", f.Error)
+				}
+				if !f.Response.Truncated {
+					t.Fatal("response not marked truncated despite exceeding the cap")
+				}
+				if len(f.Response.Body) != 64<<20 {
+					t.Fatalf("stored response body = %d, want %d", len(f.Response.Body), 64<<20)
+				}
+				if f.Response.ContentLength != int64(len(payload)) {
+					t.Fatalf("response ContentLength = %d, want %d", f.Response.ContentLength, len(payload))
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("flow not captured")
+			}
+		})
 	}
 }

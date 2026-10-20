@@ -14,7 +14,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"sync"
@@ -308,7 +307,7 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "dropped by interceptor", http.StatusForbidden)
 		return
 	}
-	if f.Error != "" {
+	if f.Error != "" && f.StatusCode == 0 {
 		http.Error(w, f.Error, http.StatusBadGateway)
 		return
 	}
@@ -418,7 +417,7 @@ func (p *Proxy) serveTunnel(conn net.Conn, authority, scheme string) {
 		if f == nil {
 			return // dropped: tear the tunnel down
 		}
-		if f.Error != "" {
+		if f.Error != "" && f.StatusCode == 0 {
 			writeRawError(conn, f.Error)
 			return
 		}
@@ -440,6 +439,7 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 	recording := p.hostInScope(host)
 
 	reqBody, reqBodyErr := captureBody(&req.Body)
+	reqTruncated := errors.Is(reqBodyErr, errBodyTooLarge)
 	LimitAcceptEncoding(req.Header)
 	rawReq := requestToRaw(req, reqBody)
 
@@ -447,11 +447,8 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 	if rewritten := p.applyRewrite("request", host, rawReq); !bytes.Equal(rewritten, rawReq) {
 		if edited, err := rawToRequest(rewritten, scheme, authority); err == nil {
 			req = edited
-			if eb, err := captureBody(&req.Body); err == nil {
-				reqBody = eb
-			} else if reqBodyErr == nil {
-				reqBodyErr, reqBody = err, eb
-			}
+			reqBody, reqBodyErr = captureBody(&req.Body)
+			reqTruncated = errors.Is(reqBodyErr, errBodyTooLarge)
 			rawReq = rewritten
 		}
 	}
@@ -469,11 +466,8 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 		edited, err := rawToRequest(res.EditedRaw, scheme, authority)
 		if err == nil {
 			req = edited
-			if eb, err := captureBody(&req.Body); err == nil {
-				reqBody = eb
-			} else if reqBodyErr == nil {
-				reqBodyErr, reqBody = err, eb
-			}
+			reqBody, reqBodyErr = captureBody(&req.Body)
+			reqTruncated = errors.Is(reqBodyErr, errBodyTooLarge)
 			rawReq = res.EditedRaw
 		}
 	}
@@ -486,15 +480,18 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 		Path:    req.URL.RequestURI(),
 		URL:     scheme + "://" + authority + req.URL.RequestURI(),
 		Started: start,
-		Request: Message{Raw: rawReq, Headers: req.Header.Clone(), Body: reqBody, ContentLength: int64(len(reqBody))},
+		Request: Message{
+			Raw: rawReq, Headers: req.Header.Clone(), Body: reqBody,
+			ContentLength: req.ContentLength, Truncated: reqTruncated,
+		},
 	}
-	if reqBodyErr != nil {
-		// Errored (e.g. truncated) bodies are still forwarded, but the flow
-		// is marked: scanner.Inspect skips errored flows by design.
+	if reqBodyErr != nil && !reqTruncated {
+		// A genuine read failure, unlike the size cap, may leave the body
+		// incomplete. Keep it for the scanner's error skip.
 		f.Error = "request body: " + reqBodyErr.Error()
 	}
 
-	outReq := prepareOutbound(req, reqBody)
+	outReq := prepareOutbound(req)
 	resp, err := p.transport.RoundTrip(outReq)
 	if err != nil {
 		if f.Error != "" {
@@ -510,7 +507,8 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 	}
 
 	respBody, respBodyErr := captureBody(&resp.Body)
-	if respBodyErr != nil && f.Error == "" {
+	respTruncated := errors.Is(respBodyErr, errBodyTooLarge)
+	if respBodyErr != nil && !respTruncated && f.Error == "" {
 		f.Error = "response body: " + respBodyErr.Error()
 	}
 	rawResp := responseToRaw(resp, respBody)
@@ -519,8 +517,12 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 	if rewritten := p.applyRewrite("response", host, rawResp); !bytes.Equal(rewritten, rawResp) {
 		if edited, perr := rawToResponse(rewritten, outReq); perr == nil {
 			eb, cerr := captureBody(&edited.Body)
+			respTruncated = errors.Is(cerr, errBodyTooLarge)
+			if resp.Body != nil {
+				_ = resp.Body.Close()
+			}
 			resp, respBody = edited, eb
-			if cerr != nil && f.Error == "" {
+			if cerr != nil && !respTruncated && f.Error == "" {
 				f.Error = "response body: " + cerr.Error()
 			}
 			rawResp = rewritten
@@ -530,13 +532,20 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 	// Response-side interception.
 	res = p.interceptor.hold(f.ID, DirectionResponse, authority, req.Method, f.URL, rawResp)
 	if res.Decision == DecisionDrop {
+		if resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 		return nil
 	}
 	if res.EditedRaw != nil {
 		if edited, perr := rawToResponse(res.EditedRaw, outReq); perr == nil {
 			eb, cerr := captureBody(&edited.Body)
+			respTruncated = errors.Is(cerr, errBodyTooLarge)
+			if resp.Body != nil {
+				_ = resp.Body.Close()
+			}
 			resp, respBody = edited, eb
-			if cerr != nil && f.Error == "" {
+			if cerr != nil && !respTruncated && f.Error == "" {
 				f.Error = "response body: " + cerr.Error()
 			}
 			rawResp = res.EditedRaw
@@ -545,7 +554,13 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 
 	f.StatusCode = resp.StatusCode
 	f.responseClose = resp.Close
-	f.Response = Message{Raw: rawResp, Headers: resp.Header.Clone(), Body: respBody, ContentLength: int64(len(respBody))}
+	f.responseStream = resp.Body
+	f.responseProto = resp.Proto
+	f.responseStatus = resp.Status
+	f.Response = Message{
+		Raw: rawResp, Headers: resp.Header.Clone(), Body: respBody,
+		ContentLength: resp.ContentLength, Truncated: respTruncated,
+	}
 	f.Duration = time.Since(start).Milliseconds()
 
 	if recording {
@@ -555,12 +570,15 @@ func (p *Proxy) roundTrip(scheme, authority string, req *http.Request) *Flow {
 }
 
 // prepareOutbound clones the inbound request into one suitable for the
-// upstream transport: absolute URL, buffered body, hop-by-hop headers removed.
-func prepareOutbound(req *http.Request, body []byte) *http.Request {
+// upstream transport: absolute URL, live body reader, hop-by-hop headers
+// removed. captureBody has already replaced req.Body with a reader that
+// replays the complete payload, so the declared Content-Length is kept intact
+// and large bodies are forwarded in full rather than as the stored prefix.
+func prepareOutbound(req *http.Request) *http.Request {
 	out := req.Clone(context.Background())
 	out.RequestURI = ""
-	out.Body = io.NopCloser(bytesReader(body))
-	out.ContentLength = int64(len(body))
+	out.Body = req.Body
+	out.ContentLength = req.ContentLength
 	stripHopByHop(out.Header)
 	return out
 }

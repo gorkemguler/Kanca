@@ -93,7 +93,7 @@ var toolDefs = []tool{
 	},
 	{
 		Name: "send_request", Title: "Send a request",
-		Description: "Send a raw HTTP/1.1 request to one of the user's targets, like Burp Repeater, and return the response. It is recorded in Kanca's history marked as sent by AI. Start from a captured flow (get_flow) and change one thing at a time. Content-Length is recomputed. Keep [[KANCA_SECRET_n]] placeholders as they are.",
+		Description: "Send a raw HTTP/1.1 request to one of the user's targets, like Burp Repeater, and return the response. It is recorded in Kanca's history marked as sent by AI. Start from a captured flow (get_flow) and change one thing at a time. Content-Length is recomputed. Keep [[KANCA_SECRET_n]] placeholders as they are. DELETE is refused unless the user has allowed it in Kanca's AI settings.",
 		InputSchema: obj(map[string]any{
 			"raw":            map[string]any{"type": "string", "description": "The full request: request line, headers, blank line, optional body."},
 			"from_flow_id":   map[string]any{"type": "integer", "description": "Use this flow's scheme and host as defaults."},
@@ -105,14 +105,13 @@ var toolDefs = []tool{
 	},
 	{
 		Name: "active_scan", Title: "Run Kanca's active scanner",
-		Description: "Probe one captured request's parameters for reflected XSS, SQL injection, path traversal, open redirect, template injection and CRLF injection. aggressive adds boolean/time-based SQL injection and command injection checks, which make the target do work. Each probe counts against the session's request budget (a scan sends from a few to a few hundred requests, depending on the parameters). Findings are added to Kanca and returned.",
+		Description: "Probe one captured request's parameters for reflected XSS, SQL injection, path traversal, open redirect, template injection and CRLF injection. aggressive adds boolean/time-based SQL injection and command injection checks, which make the target do work. Each probe counts against the session's request budget (a scan sends from a few to a few hundred requests, depending on the parameters). Findings are added to Kanca and returned. A captured DELETE is refused unless the user has allowed DELETE in Kanca's AI settings.",
 		InputSchema: obj(map[string]any{
-			"flow_id":        map[string]any{"type": "integer"},
-			"aggressive":     map[string]any{"type": "boolean", "description": "Default false."},
-			"skip_query":     map[string]any{"type": "boolean", "description": "Skip query-string parameters. Default false."},
-			"skip_body":      map[string]any{"type": "boolean", "description": "Skip form-body parameters. Default false."},
-			"skip_json":      map[string]any{"type": "boolean", "description": "Skip JSON-body fields. Default false."},
-			"include_delete": map[string]any{"type": "boolean", "description": "Also probe DELETE requests. Default false."},
+			"flow_id":    map[string]any{"type": "integer"},
+			"aggressive": map[string]any{"type": "boolean", "description": "Default false."},
+			"skip_query": map[string]any{"type": "boolean", "description": "Skip query-string parameters. Default false."},
+			"skip_body":  map[string]any{"type": "boolean", "description": "Skip form-body parameters. Default false."},
+			"skip_json":  map[string]any{"type": "boolean", "description": "Skip JSON-body fields. Default false."},
 		}, "flow_id"),
 		Annotations: prober,
 	},
@@ -532,6 +531,10 @@ func (s *Server) sendRequest(args json.RawMessage) toolResult {
 		return errorResult("%s", msg)
 	}
 	o := s.opts()
+	method, _, _ := strings.Cut(strings.TrimSpace(string(raw)), " ")
+	if strings.EqualFold(method, "DELETE") && !o.AllowDelete {
+		return errorResult("DELETE requests are disabled; the user can allow them in Kanca's AI settings")
+	}
 	s.mu.Lock()
 	if s.sent >= s.budget(o) {
 		s.mu.Unlock()
@@ -581,12 +584,11 @@ func normalizeRaw(raw string) []byte {
 
 func (s *Server) activeScan(args json.RawMessage) toolResult {
 	var a struct {
-		FlowID        int64 `json:"flow_id"`
-		Aggressive    bool  `json:"aggressive"`
-		SkipQuery     bool  `json:"skip_query"`
-		SkipBody      bool  `json:"skip_body"`
-		SkipJSON      bool  `json:"skip_json"`
-		IncludeDelete bool  `json:"include_delete"`
+		FlowID     int64 `json:"flow_id"`
+		Aggressive bool  `json:"aggressive"`
+		SkipQuery  bool  `json:"skip_query"`
+		SkipBody   bool  `json:"skip_body"`
+		SkipJSON   bool  `json:"skip_json"`
 	}
 	if err := json.Unmarshal(args, &a); err != nil {
 		return errorResult("invalid arguments: %v", err)
@@ -598,8 +600,8 @@ func (s *Server) activeScan(args json.RawMessage) toolResult {
 	if msg, ok := s.allowed(f.Host); !ok {
 		return errorResult("%s", msg)
 	}
-	if strings.EqualFold(f.Method, "DELETE") && !a.IncludeDelete {
-		return errorResult("DELETE requests are only scanned with include_delete=true, since each probe repeats the deletion")
+	if strings.EqualFold(f.Method, "DELETE") && !s.opts().AllowDelete {
+		return errorResult("DELETE requests are disabled; the user can allow them in Kanca's AI settings (each probe repeats the deletion)")
 	}
 	// Every probe counts against the session's request budget.
 	limit := s.budget(s.opts())
