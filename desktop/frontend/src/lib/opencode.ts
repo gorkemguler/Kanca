@@ -1,5 +1,5 @@
 // Pure, DOM-free helpers for the Opencode integration, unit-tested with
-// vitest, no Wails runtime needed.
+// Node's built-in test runner (opencode.test.mjs), no Wails runtime needed.
 
 /** Token export command: fills KANCA_MCP_TOKEN without printing the secret. */
 export const OPENCODE_EXPORT_CMD =

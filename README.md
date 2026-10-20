@@ -190,7 +190,9 @@ Assistant** tab and tick **Allow AI assistants to use Kanca**. Then connect Clau
 - **Opencode**: in the same tab open **Connect Opencode**. Remote keeps the
   secret out of the file (`Bearer {env:KANCA_MCP_TOKEN}`, `oauth:false`;
   first run `export KANCA_MCP_TOKEN="$(jq -r .token ~/.kanca/mcp.json)"`),
-  local uses `{"type":"local","command":["kanca","mcp-stdio"]}` with no secret.
+  local uses `{"type":"local","command":["kanca","mcp-stdio"]}` with no secret
+  (the app's copy button fills in the full path to Kanca; the example assumes
+  `kanca` is on your `PATH`).
   Verify with `opencode mcp list` / `opencode mcp debug kanca`. See
   `opencode.json.example` (remote) and `opencode.local.json.example` (local).
 
@@ -345,8 +347,8 @@ go build ./...
 go vet ./...
 go test ./...
 
-# frontend type-check + build
-cd desktop/frontend && npm install && npm run build
+# frontend type-check + build, and unit tests (Node 24+, no dependencies)
+cd desktop/frontend && npm install && npm run build && npm test
 
 # browser extension unit tests (no dependencies)
 cd extension && npm test

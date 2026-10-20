@@ -199,7 +199,9 @@ işaretleyin. Ardından Claude'u bağlayın:
 - **Opencode**: aynı sekmede **Connect Opencode** bölümünü açın. Remote,
   secret'ı dosyaya yazmaz (`Bearer {env:KANCA_MCP_TOKEN}`, `oauth:false`;
   önce `export KANCA_MCP_TOKEN="$(jq -r .token ~/.kanca/mcp.json)"`),
-  local ise secretsiz `{"type":"local","command":["kanca","mcp-stdio"]}` kullanır.
+  local ise secretsiz `{"type":"local","command":["kanca","mcp-stdio"]}` kullanır
+  (uygulamadaki kopyalama düğmesi Kanca'nın tam yolunu yazar; örnek, `kanca`
+  komutunun `PATH`'te olduğunu varsayar).
   `opencode mcp list` / `opencode mcp debug kanca` ile doğrulayın. Örnekler:
   `opencode.json.example` (remote) ve `opencode.local.json.example` (local).
 
@@ -359,8 +361,8 @@ go build ./...
 go vet ./...
 go test ./...
 
-# frontend tip kontrolü + build
-cd desktop/frontend && npm install && npm run build
+# frontend tip kontrolü + build ve birim testleri (Node 24+, bağımlılık yok)
+cd desktop/frontend && npm install && npm run build && npm test
 
 # tarayıcı eklentisi birim testleri (bağımlılık yok)
 cd extension && npm test
