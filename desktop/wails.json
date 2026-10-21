@@ -11,7 +11,7 @@
   },
   "info": {
     "productName": "Kanca",
-    "productVersion": "0.3.2",
+    "productVersion": "0.3.3",
     "comments": "Intercepting proxy for authorised web security testing"
   }
 }
