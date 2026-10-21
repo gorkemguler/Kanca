@@ -105,10 +105,11 @@ var toolDefs = []tool{
 	},
 	{
 		Name: "active_scan", Title: "Run Kanca's active scanner",
-		Description: "Probe one captured request's parameters for reflected XSS, SQL injection, path traversal, open redirect, template injection and CRLF injection. aggressive adds boolean/time-based SQL injection and command injection checks, which make the target do work. Each probe counts against the session's request budget (a scan sends from a few to a few hundred requests, depending on the parameters). Findings are added to Kanca and returned. A captured DELETE is refused unless the user has allowed DELETE in Kanca's AI settings.",
+		Description: "Probe one captured request's parameters for reflected XSS, SQL injection, path traversal, open redirect, template injection and CRLF injection. aggressive adds boolean/time-based SQL injection and command injection checks, which make the target do work. plus adds the checks ported from ActiveScan++: Host header poisoning, Edge Side Includes, suspicious input transformations, XML and SAML handling, exposed files and known CVEs (Rails, Next.js, PHP), at the cost of more requests. Each probe counts against the session's request budget (a scan sends from a few to a few hundred requests, depending on the parameters). Findings are added to Kanca and returned. A captured DELETE is refused unless the user has allowed DELETE in Kanca's AI settings.",
 		InputSchema: obj(map[string]any{
 			"flow_id":    map[string]any{"type": "integer"},
 			"aggressive": map[string]any{"type": "boolean", "description": "Default false."},
+			"plus":       map[string]any{"type": "boolean", "description": "Run the ActiveScan++ checks too. Default false."},
 			"skip_query": map[string]any{"type": "boolean", "description": "Skip query-string parameters. Default false."},
 			"skip_body":  map[string]any{"type": "boolean", "description": "Skip form-body parameters. Default false."},
 			"skip_json":  map[string]any{"type": "boolean", "description": "Skip JSON-body fields. Default false."},
@@ -194,6 +195,7 @@ func describeCall(name string, args json.RawMessage) string {
 		Title    string `json:"title"`
 		Severity string `json:"severity"`
 		Aggr     bool   `json:"aggressive"`
+		Plus     bool   `json:"plus"`
 	}
 	_ = json.Unmarshal(args, &a)
 	switch name {
@@ -230,10 +232,14 @@ func describeCall(name string, args json.RawMessage) string {
 		}
 		return clip(fmt.Sprintf("Sent %s %s to %s", method, target, host), 200)
 	case "active_scan":
+		kind := "an active scan"
 		if a.Aggr {
-			return fmt.Sprintf("Ran an aggressive active scan of flow #%d", a.FlowID)
+			kind = "an aggressive active scan"
 		}
-		return fmt.Sprintf("Ran an active scan of flow #%d", a.FlowID)
+		if a.Plus {
+			kind += " with ActiveScan++ checks"
+		}
+		return fmt.Sprintf("Ran %s of flow #%d", kind, a.FlowID)
 	case "add_finding":
 		return fmt.Sprintf("Reported [%s] %s", strings.ToUpper(a.Severity), a.Title)
 	}
@@ -586,6 +592,7 @@ func (s *Server) activeScan(args json.RawMessage) toolResult {
 	var a struct {
 		FlowID     int64 `json:"flow_id"`
 		Aggressive bool  `json:"aggressive"`
+		Plus       bool  `json:"plus"`
 		SkipQuery  bool  `json:"skip_query"`
 		SkipBody   bool  `json:"skip_body"`
 		SkipJSON   bool  `json:"skip_json"`
@@ -621,7 +628,7 @@ func (s *Server) activeScan(args json.RawMessage) toolResult {
 	defer cancel()
 	found, err := activescan.Run(ctx, activescan.Config{
 		Scheme: f.Scheme, Host: f.Host, Raw: f.Request.Raw,
-		InsecureUpstream: true, Aggressive: a.Aggressive, BeforeSend: beforeSend,
+		InsecureUpstream: true, Aggressive: a.Aggressive, Plus: a.Plus, BeforeSend: beforeSend,
 		SkipQuery: a.SkipQuery, SkipBody: a.SkipBody, SkipJSON: a.SkipJSON,
 	})
 	if err != nil {

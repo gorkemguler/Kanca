@@ -352,9 +352,10 @@ type ActiveScanDone struct {
 // merges any findings into the Findings list. Only targets may be scanned.
 // When aggressive is true it additionally runs
 // boolean/time-based SQLi and time-based command-injection probes, which make the
-// target do observable work. Probing runs in the background; results arrive as
-// scanner:finding events, then activescan:done.
-func (a *App) ActiveScan(flowID int64, aggressive bool) error {
+// target do observable work; plus adds the checks ported from ActiveScan++.
+// Probing runs in the background; results arrive as scanner:finding events, then
+// activescan:done.
+func (a *App) ActiveScan(flowID int64, aggressive, plus bool) error {
 	f, ok := a.store.Get(flowID)
 	if !ok {
 		return fmt.Errorf("flow %d not found", flowID)
@@ -368,6 +369,7 @@ func (a *App) ActiveScan(flowID int64, aggressive bool) error {
 		Raw:              f.Request.Raw,
 		InsecureUpstream: true,
 		Aggressive:       aggressive,
+		Plus:             plus,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &activeScanHandle{cancel: cancel}

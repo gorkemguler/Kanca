@@ -10,8 +10,8 @@ import (
 )
 
 // SitePlan is what a site scan would probe on one host: the captured requests
-// that have parameters to inject into, one per method, path and parameter set,
-// without static files.
+// that have parameters to inject into (with Plus, any request), one per method,
+// path and parameter set, without static files.
 type SitePlan struct {
 	// Safe holds GET and HEAD requests, which only read.
 	Safe []*proxy.Flow
@@ -31,6 +31,9 @@ type SiteOptions struct {
 	SkipQuery bool
 	SkipBody  bool
 	SkipJSON  bool
+	// Plus also plans requests without parameters, for the request- and
+	// host-level Plus checks.
+	Plus bool
 }
 
 // staticExt are file types whose parameters are cache busters, not input.
@@ -62,7 +65,7 @@ func PlanSite(flows []*proxy.Flow, include func(authority string) bool, opts Sit
 			continue
 		}
 		points := filterPoints(collectPoints(req, readBody(req), 50), opts.SkipQuery, opts.SkipBody, opts.SkipJSON)
-		if len(points) == 0 {
+		if len(points) == 0 && !opts.Plus {
 			continue
 		}
 		names := make([]string, 0, len(points))

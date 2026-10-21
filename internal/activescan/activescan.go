@@ -4,7 +4,8 @@
 // server-side template injection and CRLF/header injection. With Aggressive
 // enabled it also runs boolean- and time-based SQL injection and time-based OS
 // command injection probes — techniques that make the target do observable work
-// and so are off by default.
+// and so are off by default. Plus adds the checks ported from ActiveScan++
+// (plus.go).
 //
 // Every check is detection-only: it compares a probe response against a baseline
 // and reports a lead to verify by hand. It never attempts exploitation, never
@@ -48,6 +49,14 @@ type Config struct {
 	// (default 3s). Lower values make tests fast; it also tunes the detection
 	// threshold.
 	TimeDelay time.Duration
+	// Plus adds the checks ported from ActiveScan++: Host header poisoning,
+	// Edge Side Includes, suspicious input transformations, XML and SAML
+	// handling, exposed files and a few known CVEs. Basic auth credentials
+	// become insertion points too.
+	Plus bool
+	// PlusHosts records the hosts whose host-level Plus checks have run, so a
+	// site scan sends them once per host. Nil runs them on every scan.
+	PlusHosts *HostSet
 	// SkipQuery, SkipBody and SkipJSON restrict probing to a subset of
 	// insertion points (query string, form body, JSON body). All false means
 	// probe everywhere.
@@ -155,6 +164,9 @@ func Run(ctx context.Context, cfg Config) ([]scanner.Finding, error) {
 		ctx:      ctx,
 		sender:   sender,
 		cfg:      cfg,
+		req:      baseReq,
+		reqBody:  baseBody,
+		base:     baseFlow,
 		baseURL:  cfg.Scheme + "://" + cfg.Host + baseReq.URL.RequestURI(),
 		baseBody: baseFlow.Response.DecodedBodyString(),
 		baseDur:  baseFlow.Duration,
@@ -162,6 +174,11 @@ func Run(ctx context.Context, cfg Config) ([]scanner.Finding, error) {
 	r.baseLower = strings.ToLower(r.baseBody)
 
 	points := filterPoints(collectPoints(baseReq, baseBody, cfg.MaxParams), cfg.SkipQuery, cfg.SkipBody, cfg.SkipJSON)
+	if cfg.Plus {
+		points = append(points, basicAuthPoints(baseReq, baseBody)...)
+		r.plusHost()
+		r.plusRequest()
+	}
 	for _, ip := range points {
 		if ctx.Err() != nil {
 			break
@@ -176,6 +193,9 @@ func Run(ctx context.Context, cfg Config) ([]scanner.Finding, error) {
 			r.checkBooleanSQL(ip)
 			r.checkTimeBased(ip)
 		}
+		if cfg.Plus {
+			r.plusParam(ip)
+		}
 	}
 	return r.findings, nil
 }
@@ -185,6 +205,9 @@ type runner struct {
 	ctx       context.Context
 	sender    *proxy.Sender
 	cfg       Config
+	req       *http.Request // the parsed base request; clone it to change it
+	reqBody   []byte
+	base      *proxy.Flow // the baseline exchange
 	baseURL   string
 	baseBody  string
 	baseLower string
@@ -195,20 +218,38 @@ type runner struct {
 }
 
 func (r *runner) add(sev scanner.Severity, title, detail string) {
+	r.addAt(sev, title, detail, r.baseURL)
+}
+
+// addAt records a finding about url rather than the base request, e.g. a file
+// found elsewhere on the host.
+func (r *runner) addAt(sev scanner.Severity, title, detail, url string) {
 	r.seq++
 	r.findings = append(r.findings, scanner.Finding{
 		ID: r.seq, Severity: sev, Title: title, Detail: detail,
-		Host: r.cfg.Host, URL: r.baseURL,
+		Host: r.cfg.Host, URL: url,
 	})
 }
 
 // send issues one probe against an insertion point and returns the flow, or nil
 // on a transport error.
 func (r *runner) send(ip insertionPoint, value string) *proxy.Flow {
+	return r.dispatch(ip.build(value), false)
+}
+
+// dispatch sends raw to the scanned host, within the request budget, and
+// returns the flow, or nil on a transport error. pinned keeps the connection on
+// the scanned host whatever the Host header says.
+func (r *runner) dispatch(raw []byte, pinned bool) *proxy.Flow {
 	if r.cfg.BeforeSend != nil && !r.cfg.BeforeSend() {
 		return nil
 	}
-	f := r.sender.Send(r.ctx, ip.build(value), r.cfg.Scheme, r.cfg.Host)
+	var f *proxy.Flow
+	if pinned {
+		f = r.sender.SendTo(r.ctx, raw, r.cfg.Scheme, r.cfg.Host)
+	} else {
+		f = r.sender.Send(r.ctx, raw, r.cfg.Scheme, r.cfg.Host)
+	}
 	if f.Error != "" {
 		return nil
 	}
@@ -222,14 +263,7 @@ func (r *runner) sendRaw(ip insertionPoint, encoded string) *proxy.Flow {
 	if ip.buildRaw == nil {
 		return nil
 	}
-	if r.cfg.BeforeSend != nil && !r.cfg.BeforeSend() {
-		return nil
-	}
-	f := r.sender.Send(r.ctx, ip.buildRaw(encoded), r.cfg.Scheme, r.cfg.Host)
-	if f.Error != "" {
-		return nil
-	}
-	return f
+	return r.dispatch(ip.buildRaw(encoded), false)
 }
 
 func (r *runner) checkReflection(ip insertionPoint) {

@@ -63,6 +63,16 @@ function storePresets(next: FilterPreset[]) {
   }
 }
 
+const PLUS_KEY = "kanca.activeScanPlus";
+
+function loadPlus(): boolean {
+  try {
+    return localStorage.getItem(PLUS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 interface Props {
   onSendToRepeater: (flowId: number) => void;
   onSendToIntruder: (flow: FlowView) => void;
@@ -84,6 +94,7 @@ export default function HistoryView({
   const [presets, setPresets] = useState<FilterPreset[]>(loadPresets);
   const [scanning, setScanning] = useState<Set<number>>(new Set());
   const [scanErr, setScanErr] = useState("");
+  const [plus, setPlus] = useState(loadPlus);
   const [comment, setComment] = useState("");
   const [highlight, setHighlight] = useState("");
   const [poc, setPoc] = useState<string | null>(null);
@@ -177,7 +188,7 @@ export default function HistoryView({
         return next;
       });
     try {
-      await api.activeScan(flow.id, aggressive);
+      await api.activeScan(flow.id, aggressive, plus);
     } catch (e) {
       drop();
       if (!isNotTarget(e)) {
@@ -196,11 +207,20 @@ export default function HistoryView({
       }
       setScanning((prev) => new Set(prev).add(flow.id));
       try {
-        await api.activeScan(flow.id, aggressive);
+        await api.activeScan(flow.id, aggressive, plus);
       } catch (err: any) {
         drop();
         setScanErr("Active scan failed: " + (err?.message ?? err));
       }
+    }
+  };
+
+  const togglePlus = (on: boolean) => {
+    setPlus(on);
+    try {
+      localStorage.setItem(PLUS_KEY, on ? "1" : "0");
+    } catch {
+      /* storage unavailable: the choice lasts until reload */
     }
   };
 
@@ -483,6 +503,17 @@ export default function HistoryView({
                     >
                       Active scan+
                     </button>
+                    <label
+                      className="row"
+                      title="Also run the checks ported from ActiveScan++: Host header poisoning, Edge Side Includes, suspicious input transformations, XML and SAML handling, exposed files (.git/config, server-status…) and known CVEs (Rails, Next.js, PHP). Sends more requests."
+                    >
+                      <input
+                        type="checkbox"
+                        checked={plus}
+                        onChange={(e) => togglePlus(e.target.checked)}
+                      />
+                      <span>ActiveScan++</span>
+                    </label>
                   </>
                 )}
                 {scanErr && (

@@ -205,7 +205,7 @@ access control, and verify anything you suspect."*
 | `get_sitemap`, `get_scope` | See the target's structure and what it is allowed to test. |
 | `list_findings`, `add_finding` | Read Kanca's findings and record new ones with evidence. |
 | `send_request` | Send a raw request to one of your targets; it is recorded in Proxy History. |
-| `active_scan` | Run Kanca's [active scanner](#features-mvp) on a captured request. |
+| `active_scan` | Run Kanca's [active scanner](#features-mvp) on a captured request, optionally with the ActiveScan++ checks. |
 
 Guard rails:
 
@@ -252,6 +252,7 @@ the [CLI](#quick-start--headless-cli) and prints the commands to connect.
 | **Passive scanner** | Flags security issues from observed traffic (missing CSP/HSTS/X-Content-Type-Options, insecure cookies, permissive CORS, version disclosure) without sending any extra requests. |
 | **Site scan** | **Scan targets** in the Scanner tab (or **Scan site** on a host in the Site Map) runs the active scanner over every captured request with parameters on your targets, one at a time, with live progress; the findings appear right below. Forms and other state-changing requests are only included when you tick them, since each probe submits them again; DELETE needs its own opt-in, and query/form/JSON insertion points can be toggled. Findings carry a triage status (new/confirmed/resolved/false-positive). |
 | **Active scanner** | On demand, probes one request's insertion points — query, form-body and JSON-body parameters — for reflected input/XSS, error-based SQL injection, path traversal, open redirect, template injection (SSTI) and CRLF/header injection, restricted to your targets. An opt-in **aggressive** mode adds boolean- and time-based SQLi and time-based command-injection checks (these make the target do observable work). Detection-only: every check compares against a baseline and flags a lead to verify by hand — it never attempts exploitation. |
+| **ActiveScan++ checks** | An opt-in port of PortSwigger's [ActiveScan++](https://github.com/PortSwigger/active-scan-plus-plus) (Apache-2.0): tick **ActiveScan++** next to **Active scan** in Proxy History or in the site-scan panel (`plus` for the AI assistant). Per host it looks for exposed files (`/.git/config`, `/server-status`, OAuth/OpenID metadata…), React Server Components RCE (CVE-2025-55182 / CVE-2025-66478) and PHP2Shell (CVE-2026-109618 / CVE-2026-109619); per request, for Host and X-Forwarded-Host header poisoning, servers that answer any Host over HTTP (DNS rebinding), XML input handling, Rails file disclosure (CVE-2019-5418), PHP versions affected by PHP2Shell and Google API keys; per parameter, for Edge Side Includes, suspicious input transformations (quote consumption, arithmetic/EL/Razor evaluation, Unicode normalisation, truncation and case folding…), template and runtime error messages, and SAML messages whose parser accepts a DTD. Basic auth credentials become insertion points too. Like the rest of the scanner it only looks for signs: the checks that need an out-of-band server or run code on the target are not ported. |
 | **Save / import / export** | Save a full session (flows, rules, findings, scope) to a project file and reopen it later; export captured traffic as HAR 1.2 and import HAR captures from other tools. |
 | **WebSocket support** | `ws://` and `wss://` upgrades are bridged transparently (they used to break, since `Upgrade`/`Connection` are stripped as hop-by-hop for ordinary HTTP) with a live, per-connection frame log — hand-rolled RFC 6455 framing, no dependency. |
 | **AI assistant (MCP)** | Lets [Claude](#ai-assistant-mcp) read captured traffic, send requests and run scans against your targets, and report findings, with secrets masked and every step shown. |
@@ -273,7 +274,8 @@ kanca/                      core module — pure Go standard library, no deps
 │   ├── intruder/           payload templating + concurrent attack engine
 │   ├── rules/              match-and-replace (on-the-wire regex rewrites)
 │   ├── scanner/            passive security checks over captured flows
-│   ├── activescan/         non-destructive active probes (opt-in, scope-gated)
+│   ├── activescan/         non-destructive active probes (opt-in, scope-gated),
+│   │                       incl. the ActiveScan++ port
 │   ├── sitemap/            per-host URL path tree built from captured flows
 │   ├── scope/              target-scope host matching
 │   ├── mcp/                MCP server for AI assistants (+ stdio bridge)
@@ -369,7 +371,8 @@ drop/edit paths (`internal/proxy/proxy_test.go`).
 Shipped recently: request comparer, JWT workbench, finding triage workflow,
 history annotations and filter presets, CSRF PoC generation, Intruder
 pause/resume/delay/extract, `§…§` Intruder positions, DELETE opt-in and
-insertion-point toggles for site scans, and richer HAR exports.
+insertion-point toggles for site scans, richer HAR exports, and the
+ActiveScan++ checks.
 
 Possible future work: authentication/session handling helpers (login macros,
 multi-user contexts), a built-in wordlist manager, spidering/AJAX crawling,

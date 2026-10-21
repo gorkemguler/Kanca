@@ -348,6 +348,28 @@ func TestActiveScanDeleteRequiresUserSetting(t *testing.T) {
 	}
 }
 
+func TestActiveScanPlus(t *testing.T) {
+	fx := newFixture(t)
+	f := fx.capture(t, "GET /?q=hi HTTP/1.1\r\nHost: "+fx.host+"\r\n\r\n")
+	paths := make(chan string, 1024)
+	go func() {
+		for r := range fx.got {
+			paths <- r.URL.Path
+			<-fx.gotBody
+		}
+	}()
+
+	if text, isErr := fx.call(t, "active_scan", map[string]any{"flow_id": f.ID, "plus": true}); isErr {
+		t.Fatalf("active_scan with plus:\n%s", text)
+	}
+	for len(paths) > 0 {
+		if <-paths == "/.git/config" {
+			return
+		}
+	}
+	t.Fatal("plus should run the ActiveScan++ checks, e.g. look for /.git/config")
+}
+
 func TestActiveScanAndFindings(t *testing.T) {
 	fx := newFixture(t)
 	f := fx.capture(t, "GET /?q=hi HTTP/1.1\r\nHost: "+fx.host+"\r\n\r\n")

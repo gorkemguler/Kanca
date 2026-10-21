@@ -48,6 +48,9 @@ type SiteScanOptions struct {
 	IncludeDelete bool `json:"includeDelete"`
 	// Aggressive adds boolean/time SQLi and time command-injection probes.
 	Aggressive bool `json:"aggressive"`
+	// Plus adds the ActiveScan++ checks, and with them requests without
+	// parameters.
+	Plus bool `json:"plus"`
 	// SkipQuery/SkipBody/SkipJSON restrict insertion points.
 	SkipQuery bool `json:"skipQuery"`
 	SkipBody  bool `json:"skipBody"`
@@ -64,8 +67,8 @@ func (a *App) PlanSiteScan(host string, opts SiteScanOptions) (SiteScanPlan, err
 		return SiteScanPlan{Host: host}, err
 	}
 	p := activescan.PlanSite(a.store.Snapshot(), include, activescan.SiteOptions{
-		IncludeDelete: opts.IncludeDelete,
-		SkipQuery:     opts.SkipQuery, SkipBody: opts.SkipBody, SkipJSON: opts.SkipJSON,
+		IncludeDelete: opts.IncludeDelete, Plus: opts.Plus,
+		SkipQuery: opts.SkipQuery, SkipBody: opts.SkipBody, SkipJSON: opts.SkipJSON,
 	})
 	return SiteScanPlan{Host: host, Safe: len(p.Safe), Unsafe: len(p.Unsafe)}, nil
 }
@@ -97,8 +100,8 @@ func (a *App) ScanSite(host string, opts SiteScanOptions) error {
 		return err
 	}
 	plan := activescan.PlanSite(a.store.Snapshot(), include, activescan.SiteOptions{
-		IncludeDelete: opts.IncludeDelete,
-		SkipQuery:     opts.SkipQuery, SkipBody: opts.SkipBody, SkipJSON: opts.SkipJSON,
+		IncludeDelete: opts.IncludeDelete, Plus: opts.Plus,
+		SkipQuery: opts.SkipQuery, SkipBody: opts.SkipBody, SkipJSON: opts.SkipJSON,
 	})
 	// Copy: appending Unsafe onto plan.Safe directly could write into the
 	// plan's backing array.
@@ -110,6 +113,8 @@ func (a *App) ScanSite(host string, opts SiteScanOptions) error {
 	if len(flows) == 0 {
 		return errors.New("Kanca hasn't captured any requests with parameters to scan yet: browse the site through Kanca first")
 	}
+	// Host-level checks run once per host for the whole scan.
+	plusHosts := &activescan.HostSet{}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	a.siteScanMu.Lock()
@@ -140,6 +145,7 @@ func (a *App) ScanSite(host string, opts SiteScanOptions) error {
 			res, runErr := activescan.Run(ctx, activescan.Config{
 				Scheme: f.Scheme, Host: f.Host, Raw: f.Request.Raw,
 				InsecureUpstream: true, Aggressive: opts.Aggressive,
+				Plus: opts.Plus, PlusHosts: plusHosts,
 				SkipQuery: opts.SkipQuery, SkipBody: opts.SkipBody, SkipJSON: opts.SkipJSON,
 			})
 			if runErr != nil {

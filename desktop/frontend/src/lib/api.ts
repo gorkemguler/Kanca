@@ -159,6 +159,8 @@ export interface SiteScanOptions {
   includeUnsafe: boolean;
   includeDelete: boolean;
   aggressive: boolean;
+  /** run the ActiveScan++ checks, which also probe requests without parameters. */
+  plus: boolean;
   skipQuery: boolean;
   skipBody: boolean;
   skipJson: boolean;
@@ -313,7 +315,7 @@ interface WailsBackend {
   GetFindings(): Promise<Finding[]>;
   SetFindingStatus(id: number, status: FindingStatus): Promise<void>;
   ClearFindings(): Promise<void>;
-  ActiveScan(flowId: number, aggressive: boolean): Promise<void>;
+  ActiveScan(flowId: number, aggressive: boolean, plus: boolean): Promise<void>;
   StopActiveScan(flowId: number): Promise<void>;
   ExportHAR(): Promise<void>;
   SaveProject(): Promise<void>;
@@ -411,8 +413,8 @@ export const api = {
   setFindingStatus: (id: number, status: FindingStatus) =>
     backend().SetFindingStatus(id, status),
   clearFindings: () => backend().ClearFindings(),
-  activeScan: (flowId: number, aggressive: boolean) =>
-    backend().ActiveScan(flowId, aggressive),
+  activeScan: (flowId: number, aggressive: boolean, plus: boolean) =>
+    backend().ActiveScan(flowId, aggressive, plus),
   stopActiveScan: (flowId: number) => backend().StopActiveScan(flowId),
   exportHAR: () => backend().ExportHAR(),
   saveProject: () => backend().SaveProject(),

@@ -35,6 +35,7 @@ export function ScanPlanPanel({ host, onClose }: PanelProps) {
   const [includeUnsafe, setIncludeUnsafe] = useState(false);
   const [includeDelete, setIncludeDelete] = useState(false);
   const [aggressive, setAggressive] = useState(false);
+  const [plus, setPlus] = useState(false);
   const [skipQuery, setSkipQuery] = useState(false);
   const [skipBody, setSkipBody] = useState(false);
   const [skipJson, setSkipJson] = useState(false);
@@ -43,6 +44,7 @@ export function ScanPlanPanel({ host, onClose }: PanelProps) {
     includeUnsafe,
     includeDelete,
     aggressive,
+    plus,
     skipQuery,
     skipBody,
     skipJson,
@@ -61,7 +63,7 @@ export function ScanPlanPanel({ host, onClose }: PanelProps) {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [host, includeDelete, skipQuery, skipBody, skipJson]);
+  }, [host, includeDelete, plus, skipQuery, skipBody, skipJson]);
 
   const addTarget = async () => {
     await api.addTarget(host);
@@ -121,9 +123,10 @@ export function ScanPlanPanel({ host, onClose }: PanelProps) {
       ) : (
         <>
           <p>
-            Kanca will probe <b>{plural(plan.safe, "captured GET request")}</b> with
-            parameters for reflected XSS, SQL injection, path traversal, open
-            redirect, template injection and CRLF injection, one at a time.
+            Kanca will probe <b>{plural(plan.safe, "captured GET request")}</b>
+            {plus ? "" : " with parameters"} for reflected XSS, SQL injection, path
+            traversal, open redirect, template injection and CRLF injection
+            {plus && <>, plus the ActiveScan++ checks</>}, one at a time.
           </p>
           {plan.unsafe > 0 && (
             <label className="ai-option">
@@ -191,6 +194,21 @@ export function ScanPlanPanel({ host, onClose }: PanelProps) {
               <span className="dim">
                 — boolean/time-based SQL injection and command injection, which make
                 the server do real work (e.g. deliberate delays).
+              </span>
+            </span>
+          </label>
+          <label className="ai-option">
+            <input
+              type="checkbox"
+              checked={plus}
+              onChange={(e) => setPlus(e.target.checked)}
+            />
+            <span>
+              ActiveScan++ checks{" "}
+              <span className="dim">
+                — Host header poisoning, Edge Side Includes, suspicious input
+                transformations, XML and SAML handling, exposed files and known CVEs
+                (Rails, Next.js, PHP). Requests without parameters are scanned too.
               </span>
             </span>
           </label>

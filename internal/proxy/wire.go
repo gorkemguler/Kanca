@@ -73,6 +73,17 @@ func NewSender(cfg SenderConfig) *Sender {
 // Send parses raw request bytes, dispatches them to scheme://host and returns
 // a fully-populated Flow describing the exchange.
 func (s *Sender) Send(ctx context.Context, raw []byte, scheme, host string) *Flow {
+	return s.send(ctx, raw, scheme, host, false)
+}
+
+// SendTo is Send, but always connects to scheme://addr, whatever the Host
+// header says. The header goes out unchanged, so a scan can show a server a
+// Host other than its own.
+func (s *Sender) SendTo(ctx context.Context, raw []byte, scheme, addr string) *Flow {
+	return s.send(ctx, raw, scheme, addr, true)
+}
+
+func (s *Sender) send(ctx context.Context, raw []byte, scheme, host string, pinned bool) *Flow {
 	start := time.Now()
 	f := &Flow{
 		ID:      nextFlowID(),
@@ -86,6 +97,10 @@ func (s *Sender) Send(ctx context.Context, raw []byte, scheme, host string) *Flo
 		f.Error = err.Error()
 		f.Duration = time.Since(start).Milliseconds()
 		return f
+	}
+	if pinned {
+		// The client dials URL.Host and sends req.Host as the header.
+		req.URL.Host = host
 	}
 	reqBody, reqBodyErr := captureBody(&req.Body)
 	reqTruncated := errors.Is(reqBodyErr, errBodyTooLarge)
