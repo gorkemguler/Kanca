@@ -56,6 +56,12 @@ func (r *runner) plusHost() {
 	r.checkInterestingFiles()
 	r.checkServerAction()
 	r.checkPHPSession()
+	if r.cfg.Aggressive {
+		// The crash probe makes the target do real work (several MiB of
+		// malformed multipart, trying to kill a worker), so it is gated behind
+		// Aggressive like the other probes that strain the target.
+		r.checkCrashProbe()
+	}
 }
 
 // plusRequest runs the checks that concern the base request as a whole.
