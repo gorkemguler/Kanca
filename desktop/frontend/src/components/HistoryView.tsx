@@ -505,7 +505,7 @@ export default function HistoryView({
                     </button>
                     <label
                       className="row"
-                      title="Also run the checks ported from ActiveScan++: Host header poisoning, Edge Side Includes, suspicious input transformations, XML and SAML handling, exposed files (.git/config, server-status…) and known CVEs (Rails, Next.js, PHP). Sends more requests."
+                      title="Also run the checks ported from ActiveScan++: Host header poisoning, Edge Side Includes, suspicious input transformations, XML and SAML handling, exposed files (.git/config, server-status…) and known CVEs (Rails, Next.js, PHP, GitLab). Sends more requests."
                     >
                       <input
                         type="checkbox"

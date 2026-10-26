@@ -208,7 +208,7 @@ export function ScanPlanPanel({ host, onClose }: PanelProps) {
               <span className="dim">
                 — Host header poisoning, Edge Side Includes, suspicious input
                 transformations, XML and SAML handling, exposed files and known CVEs
-                (Rails, Next.js, PHP). Requests without parameters are scanned too.
+                (Rails, Next.js, PHP, GitLab). Requests without parameters are scanned too.
               </span>
             </span>
           </label>

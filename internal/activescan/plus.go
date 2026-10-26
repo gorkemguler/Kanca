@@ -56,6 +56,7 @@ func (r *runner) plusHost() {
 	r.checkInterestingFiles()
 	r.checkServerAction()
 	r.checkPHPSession()
+	r.checkGitLabVersion()
 	if r.cfg.Aggressive {
 		// The crash probe makes the target do real work (several MiB of
 		// malformed multipart, trying to kill a worker), so it is gated behind
