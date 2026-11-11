@@ -386,11 +386,11 @@ Son eklenenler: istek karşılaştırıcı, JWT çalışma tezgâhı, bulgu triy
 geçmiş notları ve filtre preset'leri, CSRF PoC üretimi, Intruder
 duraklat/devam/gecikme/extract, `§…§` Intruder pozisyonları, site
 taramalarında DELETE opt-in ve insertion-point anahtarları, zengin
-HAR dışa aktarımları ve ActiveScan++ kontrolleri.
+HAR dışa aktarımları, ActiveScan++ kontrolleri, pasif DOM-XSS tespiti ve SSRF aktif tarama kontrolleri.
 
 Olası gelecek çalışmalar: kimlik doğrulama/oturum yönetimi yardımcıları
 (giriş makroları, çok kullanıcılı bağlamlar), yerleşik bir wordlist yöneticisi,
-spider/AJAX taraması, stored/DOM XSS ve SSRF kontrolleri ile bant dışı (OAST)
+spider/AJAX taraması, stored-XSS korelasyonu ile bant dışı (OAST)
 etkileşim tespiti.
 
 ## Lisans

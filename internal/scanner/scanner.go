@@ -235,6 +235,7 @@ func runChecks(f *proxy.Flow) []candidate {
 				hdr + " header reveals software version: " + v})
 		}
 	}
+	out = append(out, domXSS(f)...)
 	return out
 }
 

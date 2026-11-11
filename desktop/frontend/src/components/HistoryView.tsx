@@ -494,7 +494,7 @@ export default function HistoryView({
                       onClick={() => {
                         if (
                           !confirm(
-                            "Aggressive scan also sends boolean/time-based SQLi and command-injection probes, which make the target do real work (e.g. deliberate delays). Only run this against systems you are authorised to test.\n\nContinue?"
+                            "Aggressive scan also sends boolean/time-based SQLi, command-injection and SSRF probes, which make the target do real work (e.g. deliberate delays and outbound connection attempts). Only run this against systems you are authorised to test.\n\nContinue?"
                           )
                         )
                           return;

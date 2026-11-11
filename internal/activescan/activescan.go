@@ -192,6 +192,7 @@ func Run(ctx context.Context, cfg Config) ([]scanner.Finding, error) {
 		if cfg.Aggressive {
 			r.checkBooleanSQL(ip)
 			r.checkTimeBased(ip)
+			r.checkSSRF(ip)
 		}
 		if cfg.Plus {
 			r.plusParam(ip)

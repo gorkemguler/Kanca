@@ -192,7 +192,7 @@ export function ScanPlanPanel({ host, onClose }: PanelProps) {
             <span>
               Aggressive checks{" "}
               <span className="dim">
-                — boolean/time-based SQL injection and command injection, which make
+                — boolean/time-based SQL injection, command injection and SSRF, which make
                 the server do real work (e.g. deliberate delays).
               </span>
             </span>
